@@ -4,7 +4,8 @@ module delay_line # (
     input clk,
     input rst,
     
-    input advance_valid,
+    input read,
+    input write,
     input signed [15:0] data,
     
     output reg signed [15:0] out,
@@ -22,18 +23,20 @@ module delay_line # (
             out <= 0;
             out_valid <= 0;
         end else begin
-            if(advance_valid) begin
+            if(read) begin
                 out_valid <= 1;
                 //Output old data at old pointer
                 out <= mem[pointer];
-                
+            end else begin
+                out_valid <= 0;
+            end
+            
+            if(write) begin
                 //Input new data at old pointer
                 mem[pointer] <= data;
                 
                 //Increment pointer  
                 pointer <= pointer + 1;
-            end else begin
-                out_valid <= 0;
             end
         end
     end
