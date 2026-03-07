@@ -1,4 +1,4 @@
-module butterfly_module  (
+module butterfly_module (
     input clk,
     input rst,
     
@@ -18,15 +18,14 @@ module butterfly_module  (
     output reg out_valid
 );
    
-    reg signed [15:0] A_real_r, A_imag_r, B_real_r, B_imag_r, W_real_r, W_imag_r;
     reg signed [31:0] ac, bd, ad, bc;
     
     reg signed [15:0] BW_real, BW_imag;
     
     
-    reg [3:0] valid_reg;
+    reg [2:0] valid_reg;
     wire out_valid_reg;
-    assign out_valid_reg = valid_reg[3];
+    assign out_valid_reg = valid_reg[2];
     
     function signed [15:0] saturate16;
         input signed [31:0] x;
@@ -38,15 +37,12 @@ module butterfly_module  (
     endfunction   
     
     always @ (*) begin
-        out_valid <= valid_reg[3];
+        out_valid <= valid_reg[2];
     end
     
     always @ (posedge clk or posedge rst) begin
         
         if(rst) begin
-            A_real_r <= 0; A_imag_r <= 0;
-            B_real_r <= 0; B_imag_r <= 0;
-            W_real_r <= 0; W_imag_r <= 0;
             
             ac <= 0; bd <= 0; ad <= 0; bc <= 0;
             
@@ -61,18 +57,11 @@ module butterfly_module  (
             valid_reg <= {valid_reg[2:0], in_valid};
             
             if(in_valid) begin
-                A_real_r <= A_real;
-                A_imag_r <= A_imag;
-                B_real_r <= B_real;
-                B_imag_r <= B_imag;
-                W_real_r <= W_real;
-                W_imag_r <= W_imag;
+                ac <= B_real * W_real;
+                bd <= B_imag * W_imag;
+                ad <= B_real * W_imag;
+                bc <= B_imag * W_real;
             end
-            
-            ac <= B_real_r * W_real_r;
-            bd <= B_imag_r * W_imag_r;
-            ad <= B_real_r * W_imag_r;
-            bc <= B_imag_r * W_real_r;
             
             BW_real <= saturate16(((ac - bd) + 32'sd16384) >>> 15);
             BW_imag <= saturate16(((ad + bc) + 32'sd16384) >>> 15);
