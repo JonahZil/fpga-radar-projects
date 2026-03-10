@@ -107,6 +107,7 @@ module stage_module # (
             counter <= 0;
             write_back_reg <= 0;
             output_delay_reg <= 0;
+            out_valid <= 0;
         end else begin
             
             //Output data is either the sum from BFU (1) or from the delay line (0)

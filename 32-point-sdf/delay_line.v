@@ -34,10 +34,10 @@ module delay_line # (
             if(write) begin
                 //Input new data at old pointer
                 mem[pointer] <= data;
-                
-                //Increment pointer  
-                pointer <= pointer + 1;
+                 
             end
+            
+            pointer <= pointer + 1;
         end
     end
 

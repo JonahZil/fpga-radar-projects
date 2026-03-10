@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 module testbench();
-
+    
     reg clk;
     reg rst;
     
@@ -30,16 +30,32 @@ module testbench();
     always #1 clk = ~clk;
     
     initial begin
-        
+        #1;
         out_valid <= 0;
         real_data <= 0;
         imag_data <= 0;
-    
-        #2;
         rst <= 1;
         #2;
         rst <= 0;
-        #20;
+        #2;
+        real_data <= 16'sd4000;
+        imag_data <= 16'sd4000;
+        out_valid <= 1;
+        /*
+        #2;
+        real_data <= 16'sd3000;
+        imag_data <= 16'sd3000;
+        #2;
+        real_data <= 16'sd2000;
+        imag_data <= 16'sd2000;
+        #2;
+        real_data <= 16'sd1000;
+        imag_data <= 16'sd1000;
+        #2;
+        real_data <= 16'sd8000;
+        imag_data <= 16'sd8000;
+        */
+        #2;
         $finish;
     end
     
