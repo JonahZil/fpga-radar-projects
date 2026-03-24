@@ -37,25 +37,34 @@ module testbench();
         rst <= 1;
         #2;
         rst <= 0;
-        #2;
-        real_data <= 16'sd4000;
-        imag_data <= 16'sd4000;
+        #10;
+        real_data <= 16'sd1000;
+        imag_data <= 16'sd1000;
         out_valid <= 1;
-        /*
-        #2;
-        real_data <= 16'sd3000;
-        imag_data <= 16'sd3000;
         #2;
         real_data <= 16'sd2000;
         imag_data <= 16'sd2000;
         #2;
-        real_data <= 16'sd1000;
-        imag_data <= 16'sd1000;
+        real_data <= 16'sd3000;
+        imag_data <= 16'sd3000;
+        #2;
+        real_data <= 16'sd4000;
+        imag_data <= 16'sd4000;
+        #2;
+        real_data <= 16'sd5000;
+        imag_data <= 16'sd5000;
+        #2;
+        real_data <= 16'sd6000;
+        imag_data <= 16'sd6000;
+        #2;
+        real_data <= 16'sd7000;
+        imag_data <= 16'sd7000;
         #2;
         real_data <= 16'sd8000;
         imag_data <= 16'sd8000;
-        */
         #2;
+        out_valid <= 0;
+        #100;
         $finish;
     end
     
