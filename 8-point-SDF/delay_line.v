@@ -8,7 +8,7 @@ module delay_line # (
     input signed [15:0] data,
     
     output wire signed [15:0] out,
-    output reg out_valid
+    output wire out_valid
 );
 
     localparam ADDR_WIDTH = (length > 1) ? $clog2(length) : 0;
@@ -18,16 +18,15 @@ module delay_line # (
     reg signed [15:0] mem [0:length - 1];
     
     assign out = mem[pointer];
+    assign out_valid = out_delay[length - 1];
     
     always @ (posedge clk or posedge rst) begin
         if(rst) begin
             pointer <= 0;
-            out_valid <= 0;
             out_delay <= 0;
         end else begin
-        
-            out_valid <= out_delay[length - 1];
-            out_delay <= (out_delay <<< 1) + write;    
+            
+            out_delay <= (out_delay <<< 1) | write;    
             
             if(write) begin
                 //Input new data at old pointer
