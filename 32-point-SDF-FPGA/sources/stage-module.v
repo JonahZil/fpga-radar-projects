@@ -149,6 +149,10 @@ end else begin : GEN_DN
     wire signed[15:0] imag_delay_out;
     wire imag_delay_valid;
     
+    reg signed [15:0] B_real_d;
+    reg signed [15:0] B_imag_d;
+    reg in_valid_d;
+    
     //Delay line for the real values
     delay_line #(
         .length(D)
@@ -176,14 +180,22 @@ end else begin : GEN_DN
     wire signed[15:0] bfu_out_A_real, bfu_out_A_imag;
     wire signed[15:0] bfu_out_B_real, bfu_out_B_imag;
     
+    reg signed [15:0] A_real_d, A_imag_d;
+    reg delayed_A_input;
+    
     wire bfu_out_valid;
-    assign bfu_out_valid = real_delay_valid && imag_delay_valid && state && in_valid;
+    assign bfu_out_valid = real_delay_valid && imag_delay_valid && state;
+    
+    wire signed [15:0] bfu_A_real, bfu_A_imag;
+    
+    assign bfu_A_real = delayed_A_input ? A_real_d : real_delay_out;
+    assign bfu_A_imag = delayed_A_input ? A_imag_d : imag_delay_out;
     
     butterfly_module bfu (
-        .A_real(real_delay_out),
-        .A_imag(imag_delay_out),
-        .B_real(data_real),
-        .B_imag(data_imag),
+        .A_real(bfu_A_real),
+        .A_imag(bfu_A_imag),
+        .B_real(B_real_d),
+        .B_imag(B_imag_d),
         .W_real(W_real),
         .W_imag(W_imag),
         
@@ -200,6 +212,12 @@ end else begin : GEN_DN
     assign real_delay_data = bfu_out_valid ? bfu_out_B_real : data_real; 
     assign imag_delay_data = bfu_out_valid ? bfu_out_B_imag : data_imag;
     
+    reg bfu_out_valid_d;
+    reg signed [15:0] bfu_out_A_real_d;
+    reg signed [15:0] bfu_out_A_imag_d;
+    
+    reg started;
+    
     always @ (posedge clk or posedge rst) begin
         if(rst) begin
             out_real <= 0;
@@ -207,20 +225,47 @@ end else begin : GEN_DN
             counter <= 0;
             output_delay_reg <= 0;
             out_valid <= 0;
+            B_real_d <= 0;
+            B_imag_d <= 0;
+            in_valid_d <= 0;
+            bfu_out_valid_d <= 0;
+            bfu_out_A_real_d <= 0;
+            bfu_out_A_imag_d <= 0;
+            delayed_A_input <= 0;
+            started <= 0;
         end else begin
+        
+            B_real_d <= data_real;
+            B_imag_d <= data_imag;
+            in_valid_d <= in_valid;
+            bfu_out_valid_d <= bfu_out_valid;
+            bfu_out_A_real_d <= bfu_out_A_real;
+            bfu_out_A_imag_d <= bfu_out_A_imag;
+            
+            if(in_valid) begin
+                started <= 1;
+            end
+            
+            if((state && bfu_out_valid) || !started) begin
+                A_real_d <= data_real;
+                A_imag_d <= data_imag;
+                delayed_A_input <= 0;
+            end else begin
+                delayed_A_input <= 1;
+            end
             
             //Output data is either the sum from BFU (1) or from the delay line (0)
-            out_real <= bfu_out_valid ? bfu_out_A_real : real_delay_out;
-            out_imag <= bfu_out_valid ? bfu_out_A_imag : imag_delay_out;
+            out_real <= bfu_out_valid_d ? bfu_out_A_real_d : real_delay_out;
+            out_imag <= bfu_out_valid_d ? bfu_out_A_imag_d : imag_delay_out;
             
             //Output is valid if output_delay is high or BFU has a valid sum
-            out_valid <= output_delay || bfu_out_valid;
+            out_valid <= output_delay || bfu_out_valid_d;
             
             //Shift output_delay register and add write_back from the write_back register to the right
-            output_delay_reg <= {output_delay_reg[D-2:0], bfu_out_valid};
+            output_delay_reg <= {output_delay_reg[D-2:0], bfu_out_valid_d};
             
             //Increment the counter only if the input to the stage is valid
-            if(in_valid) begin
+            if(in_valid_d) begin
                 counter <= counter + 1;
             end
             
@@ -231,7 +276,7 @@ end else begin : GEN_DN
         if(rst) begin
             twiddle_address <= 0;
         end else begin
-            if(state && in_valid) begin
+            if(state && in_valid_d) begin
                 if(twiddle_address == D - 1) begin
                     twiddle_address <= 0;
                 end else begin

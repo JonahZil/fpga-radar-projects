@@ -8,8 +8,10 @@ module sdf_pipeline(
     output pipeline_valid
 );
     
+    integer i;
     reg signed [15:0] inputs[31:0];
     initial begin
+        /*
         inputs[0]  =  19660;
         inputs[1]  =  12176;
         inputs[2]  =  -1039;
@@ -42,10 +44,15 @@ module sdf_pipeline(
         inputs[29] =  -6198;
         inputs[30] =  -1039;
         inputs[31] =  12176;
+        */
+        inputs[0] = 16'sd32767;
+        for(i = 1; i < 32; i = i + 1) begin
+            inputs[i] = 0;
+        end
     end
     
     reg signed [15:0] data_real;
-    wire signed [15:0] data_imag = 0;
+    wire signed [15:0] data_imag = 16'sd0;
     reg out_valid;
     
     wire fft_valid;

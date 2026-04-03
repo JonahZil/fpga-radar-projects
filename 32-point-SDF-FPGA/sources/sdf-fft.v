@@ -160,6 +160,7 @@ module sdf_fft_32 (
         .out_imag(stage_five_imag)
     );
     
+    
     assign out_valid = stage_five_valid;
     assign out_real = stage_five_real;
     assign out_imag = stage_five_imag;
