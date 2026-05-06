@@ -5,80 +5,53 @@ module testbench();
     reg clk;
     reg rst;
     
-    reg button;
+    reg signed [15:0] data_real, data_imag;
+    reg out_valid;
+    reg out_ready;
+   
+    wire signed [15:0] out_real, out_imag;
+    wire fft_valid;
     
-    wire signed [15:0] real_data;
-    wire signed [15:0] imag_data;
-    wire out_valid;
     
-    sdf_pipeline UUT(
+    wire signed [31:0] UUT_out;
+    assign out_real = UUT_out[31:16];
+    assign out_imag = UUT_out[15:0];
+    
+    
+    top_io_buffer UUT (
         .clk(clk),
         .rst(rst),
-        .start_calc(button),
         
-        .real_bin(real_data),
-        .imag_bin(imag_data),
-        .pipeline_valid(out_valid)
+        .in_data({data_real, data_imag}),
+        .in_valid(out_valid),
+        .out_ready(out_ready),
+        
+        .out_data(UUT_out),
+        .out_valid(fft_valid)
     );
+    
     
     initial clk = 0;
     always #1 clk = ~clk;
-    
-    initial begin
-        #1;
-        rst = 1;
-        #2;
-        rst = 0;
-        button = 1;
-        #2;
-        button = 0;
-        wait(out_valid);
-        #66;
-        $finish;
-    end
     
     /*
-    initial clk = 0;
-    always #1 clk = ~clk;
-    
-    reg in_valid;
-    reg signed [15:0] data_real;
-    reg signed [15:0] data_imag;
-    
-    wire stage_three_valid;
-    wire signed [15:0] stage_three_real;
-    wire signed [15:0] stage_three_imag;
-    
-    wire [1:0] stage_three_W_addr;
-    wire signed [15:0] W3_r;
-    wire signed [15:0] W3_i;
-    
-    twiddle_rom #(.D(4), .FILE("tw_s3.mem")) rom3 (
-        .address(stage_three_W_addr),
-        .W_real(W3_r),
-        .W_imag(W3_i)
-    );
-    
-    stage_module #(.D(4)) stage_three (
+    sdf_fft_32 UUT (
         .clk(clk),
         .rst(rst),
-        
-        .in_valid(in_valid),
+        .in_valid(out_valid),
         .data_real(data_real),
         .data_imag(data_imag),
-        
-        .twiddle_address(stage_three_W_addr),
-        .W_real(W3_r),
-        .W_imag(W3_i),
-        
-        .out_valid(stage_three_valid),
-        .out_real(stage_three_real),
-        .out_imag(stage_three_imag)
+        .out_valid(fft_valid),
+        .out_real(out_real),
+        .out_imag(out_imag)
     );
-    reg signed [15:0] inputs[31:0];
+    */
+    
     integer i;
+    reg signed [15:0] inputs[31:0];
+    
     initial begin
-        
+    
         inputs[0]  =  19660;
         inputs[1]  =  12176;
         inputs[2]  =  -1039;
@@ -117,15 +90,19 @@ module testbench();
         #2;
         rst = 0;
         #2;
+        
         for(i = 0; i < 32; i = i + 1) begin
             data_real <= inputs[i];
-            data_imag <= 0;
-            in_valid <= 1;
+            data_imag <= 16'sd0;
+            out_valid <= 1;
             #2;
         end
-        in_valid <= 0;
-        #30;
-        $finish; 
+        out_valid <= 0;
+        
+        wait(fft_valid);
+        #70;
+        
+        $finish;
     end
-    */
+
 endmodule

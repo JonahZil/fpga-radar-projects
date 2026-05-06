@@ -20,6 +20,7 @@ module sdf_fft_32 (
     wire signed [15:0] W1_i;
     
     twiddle_rom #(.D(16), .FILE("tw_s1.mem")) rom1 (
+        .clk(clk),
         .address(stage_one_W_addr),
         .W_real(W1_r),
         .W_imag(W1_i)
@@ -51,6 +52,7 @@ module sdf_fft_32 (
     wire signed [15:0] W2_i;
     
     twiddle_rom #(.D(8), .FILE("tw_s2.mem")) rom2 (
+        .clk(clk),
         .address(stage_two_W_addr),
         .W_real(W2_r),
         .W_imag(W2_i)
@@ -73,6 +75,7 @@ module sdf_fft_32 (
         .out_imag(stage_two_imag)
     );
     
+    
     wire stage_three_valid;
     wire signed [15:0] stage_three_real;
     wire signed [15:0] stage_three_imag;
@@ -82,6 +85,7 @@ module sdf_fft_32 (
     wire signed [15:0] W3_i;
     
     twiddle_rom #(.D(4), .FILE("tw_s3.mem")) rom3 (
+        .clk(clk),
         .address(stage_three_W_addr),
         .W_real(W3_r),
         .W_imag(W3_i)
@@ -104,6 +108,7 @@ module sdf_fft_32 (
         .out_imag(stage_three_imag)
     );
     
+    
     wire stage_four_valid;
     wire signed [15:0] stage_four_real;
     wire signed [15:0] stage_four_imag;
@@ -113,12 +118,13 @@ module sdf_fft_32 (
     wire signed [15:0] W4_i;
     
     twiddle_rom #(.D(2), .FILE("tw_s4.mem")) rom4 (
+        .clk(clk),
         .address(stage_four_W_addr),
         .W_real(W4_r),
         .W_imag(W4_i)
     );
     
-    stage_module #(.D(2)) stage_four (
+    stage_module #(.D(2), .stage_size(32)) stage_four (
         .clk(clk),
         .rst(rst),
         
