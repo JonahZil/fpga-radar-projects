@@ -4,6 +4,8 @@ This project implements a custom 32-point fixed-point radix-2 SDF FFT pipeline o
 
 The project was built as a prototype for a larger FPGA-based FMCW radar signal-processing pipeline. The main goal was to develop and validate the complete hardware/software path around a custom FFT core, not only the FFT algorithm itself.
 
+![FFT of a three frequency signal. The Numpy and FPGA calculated FFTs are equal.](images/computer_vs_fpga.png)
+
 ## Overview
 
 The design combines bare-metal C running on the Zynq PS with custom Verilog modules in the PL. Input samples are written from the PS through an AXI4-Lite slave interface into a PL-side buffer. The buffer feeds a streaming SDF FFT pipeline and stores the resulting FFT outputs for the PS to read back.
