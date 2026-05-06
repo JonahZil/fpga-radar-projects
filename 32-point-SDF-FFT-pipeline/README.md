@@ -1,8 +1,8 @@
 # 32-Point SDF FFT Pipeline on Zynq FPGA
 
-This project implements a custom 32 point fixed point radix-2 SDF FFT pipeline on a Zynq FPGA. The system transfers input samples from the Zynq Processing System (PS) to custom logic in the Programmable Logic (PL), computes the FFT, and returns the results back to the PS for comparison against a software reference.
+This project implements a custom 32-point fixed-point radix-2 SDF FFT pipeline on a Zynq FPGA. The system transfers input samples from the Zynq Processing System (PS) to custom logic in the Programmable Logic (PL), computes the FFT, and returns the results back to the PS for comparison against a software reference.
 
-The project was built as a prototype for a larger FPGA based FMCW radar signal processing pipeline. The main goal was to develop and validate the complete hardware/software path around a custom FFT core, not only the FFT algorithm itself.
+The project was built as a prototype for a larger FPGA-based FMCW radar signal-processing pipeline. The main goal was to develop and validate the complete hardware/software path around a custom FFT core, not only the FFT algorithm itself.
 
 ## Overview
 
@@ -49,4 +49,4 @@ The 32-point version is complete and working on FPGA. It successfully transfers 
 
 ## Future Work
 
-The next goal is to scale the architecture to 4096 points for FMCW radar range processing. Future improvements include wider internal fixed-point data paths, controlled scaling, live radar data capture, windowing, and a higher-throughput data interface.
+The next goal is to scale the architecture to larger FFT sizes, such as 2048 or 4096 points, for FMCW radar range processing. Future improvements include wider internal fixed-point data paths, controlled scaling, live radar data capture, windowing, and a higher-throughput data interface.
