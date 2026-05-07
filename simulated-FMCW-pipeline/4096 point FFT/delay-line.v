@@ -16,6 +16,7 @@ module delay_line #(
 
     wire [23:0] dout_b;
 
+    //Internal BRAM module
     xpm_memory_sdpram #(
         .ADDR_WIDTH_A        (ADDR_WIDTH),
         .ADDR_WIDTH_B        (ADDR_WIDTH),

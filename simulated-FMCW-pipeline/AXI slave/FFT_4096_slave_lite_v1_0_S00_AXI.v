@@ -1,8 +1,8 @@
+
 `timescale 1 ns / 1 ps
 
-	module fft_128_slave_lite_v1_0_S00_AXI #
+	module FFT_4096_slave_lite_v1_0_S00_AXI # 
 	(
-		// Do not modify the parameters beyond this line
 
 		// Width of S_AXI data bus
 		parameter integer C_S_AXI_DATA_WIDTH	= 32,
@@ -15,11 +15,9 @@
         output reg buf_in_valid,
         output reg buf_out_ready,
         
-        (* mark_debug = "true" *) input wire signed [47:0] buf_out_data,
-        (* mark_debug = "true" *) input wire buf_out_valid,
-        (* mark_debug = "true" *) input wire buf_in_ready,
-
-		// Do not modify the ports beyond this line
+        input wire signed [47:0] buf_out_data,
+        input wire buf_out_valid,
+        input wire buf_in_ready,
 
 		// Global Clock Signal
 		input wire  S_AXI_ACLK,
@@ -103,7 +101,7 @@
 	localparam integer OPT_MEM_ADDR_BITS = 2;
 	//----------------------------------------------
 	//-- Signals for user logic register space example
-	//------------------------------------------------
+	//-----------------------------------------------
 	//-- Number of Slave Registers 6
 	reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg0;
 	reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg1;
@@ -201,15 +199,7 @@
 	        end                                 
 	      end                                 
 
-	// Implement memory mapped register select and write logic generation
-	// The write data is accepted and written to memory mapped registers when
-	// axi_awready, S_AXI_WVALID, axi_wready and S_AXI_WVALID are asserted. Write strobes are used to
-	// select byte enables of slave registers while writing.
-	// These registers are cleared when reset (active low) is applied.
-	// Slave register write enable is asserted when valid address and data are available
-	// and the slave is ready to accept the write address and write data.
-	 
-    // Decode address for writes
+    //Decode address for writes
     wire [C_S_AXI_ADDR_WIDTH-1:0] write_addr_for_decode;
 
     assign write_addr_for_decode =
@@ -220,18 +210,6 @@
 
     assign write_reg_addr = write_addr_for_decode[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB];
     assign read_reg_addr  = S_AXI_ARADDR[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB];
-
-    (* mark_debug = "true" *) reg [7:0] real_read_count;
-
-    always @(posedge S_AXI_ACLK) begin
-        if (!S_AXI_ARESETN) begin
-            real_read_count <= 8'd0;
-        end else begin
-            if (slv_reg_rden && read_reg_addr == 3'h5) begin
-                real_read_count <= real_read_count + 1;
-            end
-        end
-    end
 
 	always @( posedge S_AXI_ACLK )
 	begin
@@ -249,33 +227,33 @@
           buf_out_ready <= 1'b0;
 	    end 
 	  else begin
-	   // Default pulses low
+	        //Default pulses low
             buf_in_valid  <= 1'b0;
             buf_out_ready <= 1'b0;
 
-            // Read-only status register
+            //Read only status register
             slv_reg1 <= {30'd0, buf_out_valid, buf_in_ready};
 
-            // Latch latest 48-bit output while valid
+            //Latch latest 48 bit output while valid
             if (buf_out_valid)
             begin
                 slv_reg4 <= {8'd0, buf_out_data[23:0]};   // imag[23:0]
                 slv_reg5 <= {8'd0, buf_out_data[47:24]};  // real[23:0]
             end
 
-            // Writes from PS
+            //Writes from PS
             if (slv_reg_wren)
             begin
                 case (write_reg_addr)
 
-                    // 0x08: input imag[23:0]
+                    //0x08: input imag[23:0]
                     3'h2:
                     begin
                         slv_reg2 <= S_AXI_WDATA;
                     end
 
-                    // 0x0C: input real[23:0]
-                    // This completes the 48-bit sample and triggers buf_in_valid
+                    //0x0C: input real[23:0]
+                    //This completes the 48 bit sample and triggers buf_in_valid
                     3'h3:
                     begin
                         slv_reg3 <= S_AXI_WDATA;
@@ -295,13 +273,13 @@
                 endcase
             end
 
-            // Reads from PS
+            //Reads from PS
             if (slv_reg_rden)
             begin
                 case (read_reg_addr)
 
-                    // 0x14: output real[23:0]
-                    // Reading this means PS has consumed both output words
+                    //0x14: output real[23:0]
+                    //Reading this means PS has consumed both output words
                     3'h5:
                     begin
                         buf_out_ready <= buf_out_valid;

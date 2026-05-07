@@ -1,24 +1,14 @@
 
 `timescale 1 ns / 1 ps
 
-	module fft_128 #
+	module FFT_4096 #
 	(
-		// Users to add parameters here
-
-		// User parameters ends
-		// Do not modify the parameters beyond this line
-
 
 		// Parameters of Axi Slave Bus Interface S00_AXI
 		parameter integer C_S00_AXI_DATA_WIDTH	= 32,
 		parameter integer C_S00_AXI_ADDR_WIDTH	= 5
 	)
 	(
-		// Users to add ports here
-
-		// User ports ends
-		// Do not modify the ports beyond this line
-
 
 		// Ports of Axi Slave Bus Interface S00_AXI
 		input wire  s00_axi_aclk,
@@ -51,12 +41,12 @@
 	wire signed [47:0] buf_out_data;
     wire buf_out_valid;
     wire buf_in_ready;
-    
-    // Instantiation of Axi Bus Interface S00_AXI
-	fft_128_slave_lite_v1_0_S00_AXI # ( 
+	
+// Instantiation of Axi Bus Interface S00_AXI
+	FFT_4096_slave_lite_v1_0_S00_AXI # ( 
 		.C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
 		.C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
-	) fft_128_slave_lite_v1_0_S00_AXI_inst (
+	) FFT_4096_slave_lite_v1_0_S00_AXI_inst (
 	    .buf_in_data      (buf_in_data),
         .buf_in_valid     (buf_in_valid),
         .buf_out_ready    (buf_out_ready),
@@ -64,7 +54,6 @@
         .buf_out_data     (buf_out_data),
         .buf_out_valid    (buf_out_valid),
         .buf_in_ready     (buf_in_ready),
-        
 		.S_AXI_ACLK(s00_axi_aclk),
 		.S_AXI_ARESETN(s00_axi_aresetn),
 		.S_AXI_AWADDR(s00_axi_awaddr),
@@ -87,9 +76,9 @@
 		.S_AXI_RVALID(s00_axi_rvalid),
 		.S_AXI_RREADY(s00_axi_rready)
 	);
-
+    
     //Instantiation of buffer
-    top_io_buffer # (.N(128)) buffer (
+    top_io_buffer # (.N(4096)) buffer (
         .clk(s00_axi_aclk),
         .rst(~s00_axi_aresetn),
     

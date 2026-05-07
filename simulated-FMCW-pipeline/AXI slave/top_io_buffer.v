@@ -4,27 +4,28 @@ module top_io_buffer # (
     input clk,
     input rst,
     
-    (* mark_debug = "true" *) input signed [47:0] in_data,
-    (* mark_debug = "true" *) input in_valid,
-    (* mark_debug = "true" *) input out_ready,
-    
-    (* mark_debug = "true" *) output signed [47:0] out_data,
-    (* mark_debug = "true" *) output reg out_valid,
-    (* mark_debug = "true" *) output reg in_ready
+    input signed [47:0] in_data,
+    input in_valid,
+    input out_ready,
+   
+    output signed [47:0] out_data,
+    output reg out_valid,
+    output reg in_ready
 );
     
     localparam ADDR_WIDTH = $clog2(N);
     
-    (* mark_debug = "true" *) wire signed [47:0] bram_data_i;
-    (* mark_debug = "true" *) wire signed [47:0] bram_data_o;
-    
-    (* mark_debug = "true" *) wire write_mem;
-    (* mark_debug = "true" *) reg [ADDR_WIDTH:0] read_address;
-    (* mark_debug = "true" *) reg [ADDR_WIDTH:0] write_address;
+    wire signed [47:0] bram_data_i;
+    wire signed [47:0] bram_data_o;
    
-    (* mark_debug = "true" *) reg [ADDR_WIDTH + 1:0] load_counter;
-    (* mark_debug = "true" *) reg [ADDR_WIDTH + 1:0] read_issue_counter;
+    wire write_mem;
+    reg [ADDR_WIDTH - 1:0] read_address;
+    reg [ADDR_WIDTH - 1:0] write_address;
+  
+    reg [ADDR_WIDTH:0] load_counter;
+    reg [ADDR_WIDTH:0] read_issue_counter;
     
+    //Internal buffer BRAM module
     xpm_memory_sdpram #(
         .ADDR_WIDTH_A        (ADDR_WIDTH),
         .ADDR_WIDTH_B        (ADDR_WIDTH),
@@ -72,12 +73,13 @@ module top_io_buffer # (
         .sbiterrb       ()
     );
     
-    (* mark_debug = "true" *) reg fft_in_valid;
-    (* mark_debug = "true" *) wire fft_out_valid;
-    (* mark_debug = "true" *) wire signed [23:0] fft_out_real;
-    (* mark_debug = "true" *) wire signed [23:0] fft_out_imag;
+    reg fft_in_valid;
+    wire fft_out_valid;
+    wire signed [23:0] fft_out_real;
+    wire signed [23:0] fft_out_imag;
     
-    sdf_fft_128 fft (
+    //Instantiation of FFT module
+    sdf_fft_4096 fft (
         .clk(clk),
         .rst(rst),
         
@@ -90,7 +92,7 @@ module top_io_buffer # (
         .out_imag(fft_out_imag)
     );
 
-    (* mark_debug = "true" *) reg [1:0] state;
+    reg [1:0] state;
     localparam STATE_LOAD = 2'd0;
     localparam STATE_FFT = 2'd1;
     localparam STATE_OUTPUT = 2'd2;
@@ -101,22 +103,9 @@ module top_io_buffer # (
     
     assign out_data = bram_data_o;
     
-    (* mark_debug = "true" *) reg bram_valid_d;
+    reg bram_valid_d;
     
-    (* mark_debug = "true" *) reg [ADDR_WIDTH:0] buffer_consume_count;
-
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            buffer_consume_count <= 0;
-        end else begin
-            if (state == STATE_LOAD) begin
-                buffer_consume_count <= 0;
-            end else if (state == STATE_OUTPUT && out_valid && out_ready) begin
-                buffer_consume_count <= buffer_consume_count + 1;
-            end
-        end
-    end
-    
+    //Buffer FSM
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             state <= STATE_LOAD;
@@ -130,7 +119,8 @@ module top_io_buffer # (
             in_ready <= 0;
         end else begin
             case (state)
-    
+                
+                //In this state, data sent from the AXI slave gets loaded into the buffer
                 STATE_LOAD: begin
                     fft_in_valid <= 0;
                     out_valid <= 0;
@@ -141,6 +131,7 @@ module top_io_buffer # (
                         load_counter <= load_counter + 1;
                     end
                     
+                    //If the last value has been input, transition to STATE_FFT
                     if(load_counter == N) begin
                         state <= STATE_FFT;
                         write_address <= 0;
@@ -153,7 +144,8 @@ module top_io_buffer # (
                    
                 end
                 
-                
+                //In this state, data is sent from the buffer into the FFT.
+                //The output of the FFT gets written back into the buffer
                 STATE_FFT: begin
                     if (read_issue_counter < N) begin
                         read_address <= read_issue_counter[ADDR_WIDTH:0];
@@ -169,6 +161,7 @@ module top_io_buffer # (
                         write_address <= write_address + 1;
                     end
                     
+                    //If the last output has been written into the buffer, switch to STATE_OUTPUT
                     if(write_address == N - 1) begin
                         state <= STATE_OUTPUT;
                         load_counter <= 0;
@@ -178,6 +171,7 @@ module top_io_buffer # (
                     end
                 end
                 
+                //In this state, the outputs of the FFT are output back to the AXI slave
                 STATE_OUTPUT: begin
                 
                     out_valid <= bram_valid_d;
@@ -193,6 +187,7 @@ module top_io_buffer # (
                             read_address <= read_issue_counter[ADDR_WIDTH - 1:0];
                             read_issue_counter <= read_issue_counter + 1;
                         end else begin
+                            //If the last output of the FFT has been output, go back to STATE_IDLE
                             state <= STATE_LOAD;
                         end
                     end

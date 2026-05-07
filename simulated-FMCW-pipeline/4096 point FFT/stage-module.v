@@ -1,7 +1,7 @@
 module stage_module # (
     parameter D = 4,
     parameter ADDR_WIDTH = (D <= 1) ? 1 : $clog2(D),
-    parameter stage_size = 128,
+    parameter stage_size = 4096,
     parameter SCALE_BFU = 0
 ) (
     input clk,

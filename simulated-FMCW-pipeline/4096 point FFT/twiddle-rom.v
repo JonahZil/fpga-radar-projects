@@ -1,6 +1,5 @@
 module twiddle_rom #(
     parameter D = 16,
-    parameter ADDR_WIDTH = (D <= 1) ? 1 : $clog2(D),
     parameter FILE = ""
 )(
     input clk,
@@ -9,8 +8,10 @@ module twiddle_rom #(
     output signed [15:0] W_imag
 );
 
+    localparam ADDR_WIDTH = (D <= 1) ? 1 : $clog2(D);
     wire [31:0] ROM_out;
-
+    
+    //Internal ROM module
     xpm_memory_sprom #(
         .ADDR_WIDTH_A        (ADDR_WIDTH),
         .AUTO_SLEEP_TIME     (0),
