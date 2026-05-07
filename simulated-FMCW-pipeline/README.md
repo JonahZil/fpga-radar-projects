@@ -49,45 +49,51 @@ UART
 ->         
 Python / NumPy verification and plotting
 
+## Hardware Usage
+ * 6000 LUT                 35%
+ * 6300 FF                  8%
+ * 482 LUTRAM               18%
+ * 100 kB BRAM (26 units)   43%
+ * 44 DSP                   55%
 
 ## Features
 
-*Custom radix-2 SDF FFT written from scratch in Verilog
-*4096 point FFT pipeline
-*Parameterized FFT stage modules
-*24 bit signed fixed-point internal data path
-*16 bit signed twiddle factors
-*BRAM based delay lines and input/output buffering
-*AXI4-Lite interface between PS and PL
-*UART based communication between PC and Zynq PS
-*Python verification against NumPy FFT
-*Simulated FMCW radar range spectrum plotting
-*Bit reversed output correction in Python
-*dB-scale radar spectrum visualization
+ * Custom radix-2 SDF FFT written from scratch in Verilog
+ * 4096 point FFT pipeline
+ * Parameterized FFT stage modules
+ * 24 bit signed fixed-point internal data path
+ * 16 bit signed twiddle factors
+ * BRAM based delay lines and input/output buffering
+ * AXI4-Lite interface between PS and PL
+ * UART based communication between PC and Zynq PS
+ * Python verification against NumPy FFT
+ * Simulated FMCW radar range spectrum plotting
+ * Bit reversed output correction in Python
+ * dB-scale radar spectrum visualization
 
 ## Hardware and Tools
 
-*FPGA platform:   Zynq-7000 SoC
-*Board used: 	  Zybo Z7
-*HDL:             Verilog
-*FPGA tools:      Vivado
-*PS software:     Vitis/C
-*Host software:   Python/NumPy/Matplotlib
-*Communication:   UART
-*PS/PL interface: AXI4-Lite
+ * FPGA platform:   Zynq-7000 SoC
+ * Board used: 	    Zybo Z7 Development Board
+ * HDL:             Verilog
+ * FPGA tools:      Vivado
+ * PS software:     Vitis/C
+ * Host software:   Python/NumPy/Matplotlib
+ * Communication:   UART
+ * PS/PL interface: AXI4-Lite
 
 ## Architecture
 
-PL: The FFT is implemented as a radix-2 single-path delay feedback pipeline. The FFT output is produced in bit-reversed order. The Python verification script reorders the bins into natural order before comparing the FPGA output against the NumPy reference.
+PL: The FFT is implemented as a radix-2 single-path delay feedback pipeline. The FFT output is produced in bit-reversed order. The Python verification script reorders the bins into natural order before comparing the FPGA output against the NumPy reference. The single-path delay feedback architecture is particularly attractive for FMCW radar signal processing because it provides a throughput of 1.
 
 The AXI4-Lite slave exposes the following registers:
 
-0x00 COUNTER   Debug counter
-0x04 STATUS    bit 0 = input ready, bit 1 = output valid
-0x08 IN_IMAG   Input imaginary component, lower 24 bits
-0x0C IN_REAL   Input real component, lower 24 bits
-0x10 OUT_IMAG  Output imaginary component, lower 24 bits
-0x14 OUT_REAL  Output real component, lower 24 bits
+ * 0x00 COUNTER   Debug counter
+ * 0x04 STATUS    bit 0 = input ready, bit 1 = output valid
+ * 0x08 IN_IMAG   Input imaginary component, lower 24 bits
+ * 0x0C IN_REAL   Input real component, lower 24 bits
+ * 0x10 OUT_IMAG  Output imaginary component, lower 24 bits
+ * 0x14 OUT_REAL  Output real component, lower 24 bits
 
 PS: The PS receives the data through UART from the Python program and packs each byte into a sample. It feeds 4096 samples to the AXI slave. When the FFT presents an output through the AXI slave, it receives it and breaks it up into bytes to send back over UART.
 
