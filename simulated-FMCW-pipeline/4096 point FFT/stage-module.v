@@ -32,8 +32,8 @@ if(D == 1) begin : GEN_D1
     reg signed [23:0] A_p_real, A_p_imag;
     reg signed [23:0] B_p_real, B_p_imag;
 
-    reg compute_d;   // output A'
-    reg compute_d2;  // output B'
+    reg compute_d;   //output A'
+    reg compute_d2;  //output B'
 
     function signed [23:0] saturate24;
         input signed [31:0] x;
@@ -65,7 +65,7 @@ if(D == 1) begin : GEN_D1
         $signed({{8{A_imag[23]}}, A_imag}) -
         $signed({{8{data_imag[23]}}, data_imag});
 
-    // Input/state handling and trivial butterfly computation
+    //Input/state handling and trivial butterfly computation
     always @ (posedge clk or posedge rst) begin
         if (rst) begin
             state <= 1'b0;
@@ -88,13 +88,13 @@ if(D == 1) begin : GEN_D1
             end
 
             if (!state && in_valid) begin
-                // First sample of the pair
+                //First sample of the pair
                 A_real <= data_real;
                 A_imag <= data_imag;
             end
 
             if (do_compute) begin
-                // Second sample of the pair, trivial butterfly
+                //Second sample of the pair, trivial butterfly
                 A_p_real <= saturate24(sum_real_w  >>> 1);
                 A_p_imag <= saturate24(sum_imag_w  >>> 1);
                 B_p_real <= saturate24(diff_real_w >>> 1);
@@ -104,7 +104,7 @@ if(D == 1) begin : GEN_D1
         end
     end
 
-    // Output: first A', then B'
+    //Output: first A', then B'
     always @ (posedge clk or posedge rst) begin
         if (rst) begin
             out_valid <= 1'b0;
