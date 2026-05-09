@@ -2,7 +2,7 @@
 
 A small 16 point radix-2 real-only data FFT with inverted input. The calculations take roughly 300 clock cycles.
 
-The large amount of clock cycles necessary for computation were intentional as this project was meant as a rough outline for an FFT. It is not optimized and is meant for understanding. The next projects focus on optimization and expansion of input/output size.
+The large amount of clock cycles necessary for computation were intentional as this project was meant as a rough outline for an FFT. It is not optimized and is meant for understanding how an FFT works. The next projects focus on optimization and expansion of input/output size.
 
 
 ## A testbench (tester.v) file is provided to visualize the data for the following wave:
