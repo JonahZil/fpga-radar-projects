@@ -1,4 +1,3 @@
-
 module spi_master(
     input clk,
     input rst,
@@ -101,8 +100,18 @@ module spi_master(
                     CS_N <= 1'b1;
                     
                     if(out_ready) begin
-                        state <= IDLE_STATE;
+                        SCLK <= 1'b0;
+                        MOSI <= 1'b0;
+                        in_ready <= 1'b0;
                         out_valid <= 1'b0;
+                        out_data <= 32'd0;
+                        
+                        clk_counter <= 2'd3;
+                        data_counter <= 6'd0;
+                        write_index <= 5'd31;
+                        
+                        in_data_r <= 32'd0;
+                        state <= IDLE_STATE;
                     end
                     
                 end
