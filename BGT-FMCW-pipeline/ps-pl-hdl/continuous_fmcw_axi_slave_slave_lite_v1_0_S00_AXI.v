@@ -1,6 +1,6 @@
 `timescale 1 ns / 1 ps
 
-module BGT_AXI_slave_slave_lite_v1_0_S00_AXI #
+module continuous_fmcw_axi_slave_lite_AXI #
 (
     parameter integer C_S_AXI_DATA_WIDTH = 32,
     parameter integer C_S_AXI_ADDR_WIDTH = 5

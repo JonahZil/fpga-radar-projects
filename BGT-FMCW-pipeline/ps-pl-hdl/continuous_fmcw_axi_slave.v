@@ -1,7 +1,7 @@
 
 `timescale 1 ns / 1 ps
 
-	module BGT_AXI_slave #
+	module continuous_fmcw_axi_slave #
 	(
 
 		// Parameters of Axi Slave Bus Interface S00_AXI
@@ -49,10 +49,10 @@
     wire buf_out_valid;
 	
 // Instantiation of Axi Bus Interface S00_AXI
-	BGT_AXI_slave_slave_lite_v1_0_S00_AXI # ( 
+	continuous_fmcw_axi_slave_lite_AXI # ( 
 		.C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
 		.C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
-	) FFT_4096_slave_lite_v1_0_S00_AXI_inst (
+	) continuous_fmcw_axi_slave_lite_AXI_inst (
         .buf_out_ready    (buf_out_ready),
     
         .buf_out_data     (buf_out_data),

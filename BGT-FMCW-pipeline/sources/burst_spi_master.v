@@ -51,6 +51,10 @@ module burst_spi_master #(
                     out_valid <= 1'b0;
                     CS_N <= 1'b1;
                     in_ready <= 1'b1;
+                    clk_counter <= 2'd3;
+                    data_counter <= 4'd15;
+                    sample_count <= 0;
+                    delay_counter <= 8'd0;
                     if(start_burst) begin
                         state <= DELAY_STATE;
                         in_ready <= 1'b0;

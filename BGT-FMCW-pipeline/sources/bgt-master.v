@@ -1,6 +1,7 @@
 module bgt_master #(
-    parameter CONFIGURE_LENGTH = 39,
-    parameter CHIRP_SIZE = 64
+    parameter CONFIGURE_LENGTH = 32,
+    parameter CHIRP_SIZE = 64,
+    parameter FRAME_DELAY = 125000000
 ) (
     
     input clk,
@@ -9,6 +10,9 @@ module bgt_master #(
     
     input MISO,
     input IRQ,
+    
+    output reg fft_rst,
+    (* mark_debug = "true" *) input buffer_ready,
     
     (* mark_debug = "true" *) output wire SCLK,
     (* mark_debug = "true" *) output wire MOSI,
@@ -20,6 +24,7 @@ module bgt_master #(
 );
 
     reg [6:0] clk_counter;
+    reg [31:0] delay_counter;
     
     localparam IDLE_STATE = 4'd0;
     localparam FIRST_DELAY_STATE = 4'd1;
@@ -28,7 +33,11 @@ module bgt_master #(
     localparam CONFIGURE_STATE = 4'd4;
     localparam CHIRP_DELAY_STATE = 4'd5;
     localparam FIFO_READ_STATE = 4'd6;
-    localparam INACTIVE_STATE = 4'd7;
+    localparam UART_DELAY_STATE = 4'd7;
+    localparam FPGA_RESET_STATE = 4'd8;
+    localparam SOFT_RESET_STATE = 4'd9;
+    localparam PACR_WRITE_STATE = 4'd10;
+    localparam FRAME_START_STATE = 4'd11;
     (* mark_debug = "true" *) reg [3:0] state;
     
     (* mark_debug = "true" *) reg valid_word;
@@ -71,7 +80,7 @@ module bgt_master #(
     (* mark_debug = "true" *) reg [5:0] configure_address;
     (* mark_debug = "true" *) wire [31:0] configure_rom_word;
     config_rom #(
-        .FILE("bgt_rom.mem"),
+        .FILE("register_configuration.mem"),
         .LENGTH(CONFIGURE_LENGTH)
     ) config_rom (
         .clk(clk),
@@ -94,6 +103,8 @@ module bgt_master #(
     
     wire signed [11:0] centered_sample;
     assign centered_sample = raw_sample - 12'd2048;
+    
+    (* mark_debug = "true" *) reg [15:0] frame_counter;
     
     burst_spi_master #(
         .CHIRP_SIZE(CHIRP_SIZE)
@@ -127,6 +138,9 @@ module bgt_master #(
             MISO_r <= 1'b0;
             IRQ_r <= 1'b0;
             start_burst_read <= 1'b0;
+            fft_rst <= 1'b0;
+            delay_counter <= 32'd0;
+            frame_counter <= 16'd0;
         end else begin
             
             MISO_r <= MISO;
@@ -210,6 +224,7 @@ module bgt_master #(
                     
                     if(master_valid) begin
                         state <= FIFO_READ_STATE;
+                        frame_counter <= frame_counter + 1;
                     end
                 end
                 
@@ -218,7 +233,7 @@ module bgt_master #(
                     valid_word <= 1'b0;
                     start_burst_read <= 1'b0;
                     if(burst_read_ready) begin
-                        state <= INACTIVE_STATE;
+                        state <= UART_DELAY_STATE;
                     end else begin
                         if(sample_valid) begin
                             adc_output <= {{8{centered_sample[11]}}, centered_sample, 4'b0, 24'b0};
@@ -226,9 +241,62 @@ module bgt_master #(
                     end
                 end
                 
-                INACTIVE_STATE: begin
+                UART_DELAY_STATE: begin
                     out_valid <= 1'b0;
                     adc_output <= 48'd0;
+                    
+                    if(delay_counter < FRAME_DELAY - 1) begin
+                        delay_counter <= delay_counter + 1;
+                    end else if (buffer_ready) begin
+                        state <= FPGA_RESET_STATE;
+                    end
+                end
+                
+                FPGA_RESET_STATE: begin
+                    fft_rst <= 1'b1;
+                    state <= SOFT_RESET_STATE;
+                end
+                
+                SOFT_RESET_STATE: begin
+                    fft_rst <= 1'b0;
+                    
+                    if(master_ready) begin
+                        master_word <= 32'h011E827C;
+                        valid_word <= 1'b1;
+                    end else begin
+                        valid_word <= 1'b0;
+                    end
+                    
+                    if(master_valid) begin
+                        state <= PACR_WRITE_STATE;
+                    end
+                end
+                
+                PACR_WRITE_STATE: begin
+                    if(master_ready) begin
+                        master_word <= 32'h09E967FD;
+                        valid_word <= 1'b1;
+                    end else begin
+                        valid_word <= 1'b0;
+                    end
+                    
+                    if(master_valid) begin
+                        state <= FRAME_START_STATE;
+                    end
+                end
+                
+                FRAME_START_STATE: begin
+                    if(master_ready) begin
+                        master_word <= 32'h011E8271;
+                        valid_word <= 1'b1;
+                    end else begin
+                        valid_word <= 1'b0;
+                    end
+                    
+                    if(master_valid) begin
+                        state <= CHIRP_DELAY_STATE;
+                        delay_counter <= 32'd0;
+                    end
                 end
                 
             endcase;
