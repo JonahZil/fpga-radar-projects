@@ -1,7 +1,6 @@
-
 `timescale 1 ns / 1 ps
 
-	module continuous_fmcw_axi_slave #
+	module fmcw_output_slave #
 	(
 
 		// Parameters of Axi Slave Bus Interface S00_AXI
@@ -45,18 +44,22 @@
 	
 	wire buf_out_ready;
 	
-	wire signed [47:0] buf_out_data;
+    wire signed [17:0] alpha;
+    wire signed [17:0] beta;
+    wire [23:0] range_calc;
     wire buf_out_valid;
 	
 // Instantiation of Axi Bus Interface S00_AXI
-	continuous_fmcw_axi_slave_lite_AXI # ( 
+	fmcw_output_slave_slave_lite_v1_0_S00_AXI # ( 
 		.C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
 		.C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
-	) continuous_fmcw_axi_slave_lite_AXI_inst (
+	) fmcw_output_slave_slave_lite_v1_0_S00_AXI_inst (
         .buf_out_ready    (buf_out_ready),
     
-        .buf_out_data     (buf_out_data),
-        .buf_out_valid    (buf_out_valid),
+        .alpha(alpha),
+        .beta(beta),
+        .range_calc(range_calc),
+        .buf_out_valid(buf_out_valid),
 		.S_AXI_ACLK(s00_axi_aclk),
 		.S_AXI_ARESETN(s00_axi_aresetn),
 		.S_AXI_AWADDR(s00_axi_awaddr),
@@ -81,7 +84,13 @@
 	);
     
     //Instantiation of buffer
-    top_io_buffer # (.N(64)) buffer (
+    top_io_buffer # (
+        .N(256),
+        .RANGE_PARAMETER(16'd37500),
+        .FIRST_BIN(6),
+        .LAST_BIN(52),
+        .FRAME_DELAY(3333333)
+    ) buffer (
         .clk(s00_axi_aclk),
         .rst(~s00_axi_aresetn),
         .start(start),
@@ -96,7 +105,9 @@
         
         .out_ready(buf_out_ready),
     
-        .out_data(buf_out_data),
+        .alpha(alpha),
+        .beta(beta),
+        .range_calc(range_calc),
         .out_valid(buf_out_valid)
 	);
 

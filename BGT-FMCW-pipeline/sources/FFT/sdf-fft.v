@@ -1,4 +1,4 @@
-module sdf_fft_64 (
+module sdf_fft_256 (
     input clk,
     input rst,
     
@@ -141,7 +141,7 @@ module sdf_fft_64 (
         .out_real(stage_four_real),
         .out_imag(stage_four_imag)
     );
-    
+    */
     wire stage_five_valid;
     wire signed [23:0] stage_five_real;
     wire signed [23:0] stage_five_imag;
@@ -161,9 +161,9 @@ module sdf_fft_64 (
         .clk(clk),
         .rst(rst),
         
-        .in_valid(stage_four_valid),
-        .data_real(stage_four_real),
-        .data_imag(stage_four_imag),
+        .in_valid(in_valid),
+        .data_real(data_real),
+        .data_imag(data_imag),
         
         .twiddle_address(stage_five_W_addr),
         .W_real(W5_r),
@@ -206,7 +206,7 @@ module sdf_fft_64 (
         .out_real(stage_six_real),
         .out_imag(stage_six_imag)
     );
-    */
+    
     wire stage_seven_valid;
     wire signed [23:0] stage_seven_real;
     wire signed [23:0] stage_seven_imag;
@@ -226,9 +226,9 @@ module sdf_fft_64 (
         .clk(clk),
         .rst(rst),
         
-        .in_valid(in_valid),
-        .data_real(data_real),
-        .data_imag(data_imag),
+        .in_valid(stage_six_valid),
+        .data_real(stage_six_real),
+        .data_imag(stage_six_imag),
         
         .twiddle_address(stage_seven_W_addr),
         .W_real(W7_r),

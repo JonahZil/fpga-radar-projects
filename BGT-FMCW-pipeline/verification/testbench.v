@@ -18,40 +18,8 @@ module testbench();
     
     initial clk = 0;
     always #1 clk = ~clk;
-    
-    initial out_ready = 0;
-    always begin
-        #2;
-        out_ready = 1;
-        #2;
-        out_ready = 0;
-    end
-    
-    initial MISO = 0;
-    
-    /*
-    initial begin
-        MISO = 0;
-        @(negedge CS_N);
-    
-        forever begin
-            MISO = 1;
-            #8; 
-            MISO = 0;
-            #16;
-            MISO = 1;
-            #8;
-            MISO = 0;
-            #40;
-            MISO = 1;
-            #24;
-            MISO = 0;
-            #16;
-            MISO = 1;
-            #16;
-        end
-    end
-    */
+    initial MISO = 1;
+    initial out_ready = 1;
     
     top_io_buffer UUT (
         .clk(clk),
@@ -73,11 +41,9 @@ module testbench();
     
     initial begin
         #10;
-        
-        MISO <= 1'b1;
         IRQ <= 1'b0;
         rst <= 1'b1;
-        
+        MISO <= 1'b1;
         #2;
         
         rst <= 1'b0;
@@ -91,5 +57,5 @@ module testbench();
         IRQ <= 1'b1;
        
     end
-
+    
 endmodule

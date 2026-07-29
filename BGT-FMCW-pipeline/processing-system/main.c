@@ -6,14 +6,28 @@
 
 #include <stdint.h>
 
-#define FFT_N                       64
+/*
+ * Check xparameters.h after regenerating the BSP.
+ *
+ * Depending on the name of the AXI peripheral in the block design,
+ * this may instead retain the old name:
+ *
+ * XPAR_CONTINUOUS_FMCW_AXI_SLAVE_0_BASEADDR
+ */
+#define BUF_BASE                    XPAR_FMCW_OUTPUT_SLAVE_0_BASEADDR
 
-#define BUF_BASE                    XPAR_CONTINUOUS_FMCW_AXI_SLAVE_0_BASEADDR
-
+/*
+ * AXI register offsets.
+ */
 #define REG_STATUS                  0x04U
-#define REG_OUT_IMAG                0x10U
-#define REG_OUT_REAL                0x14U
+#define REG_RANGE                   0x08U
+#define REG_ALPHA                   0x0CU
+#define REG_BETA                    0x10U
 
+/*
+ * Status register bit 1:
+ *     1 = range and phase result is available
+ */
 #define STATUS_OUT_VALID            0x02U
 
 /*
@@ -25,8 +39,9 @@
 
 static XUartPs Uart;
 
+
 /*
- * Initialize PS UART 1 and change its baud rate to 921600.
+ * Initialize PS UART 1 and set its baud rate to 921600.
  */
 static int uart_init(void)
 {
@@ -70,6 +85,7 @@ static int uart_init(void)
     return XST_SUCCESS;
 }
 
+
 /*
  * Blocking UART receive.
  */
@@ -77,6 +93,7 @@ static uint8_t uart_read_byte(void)
 {
     return XUartPs_RecvByte(UART_BASEADDR);
 }
+
 
 /*
  * Blocking UART transmit.
@@ -86,6 +103,7 @@ static void uart_write_byte(uint8_t byte)
     XUartPs_SendByte(UART_BASEADDR, byte);
 }
 
+
 static void uart_write_string(const char *text)
 {
     while (*text != '\0') {
@@ -94,53 +112,45 @@ static void uart_write_string(const char *text)
     }
 }
 
+
+/*
+ * Send an unsigned 32-bit value in little-endian order.
+ */
+static void uart_write_uint32_le(uint32_t value)
+{
+    uart_write_byte((uint8_t)(value & 0xFFU));
+    uart_write_byte((uint8_t)((value >> 8) & 0xFFU));
+    uart_write_byte((uint8_t)((value >> 16) & 0xFFU));
+    uart_write_byte((uint8_t)((value >> 24) & 0xFFU));
+}
+
+
 /*
  * Send a signed 32-bit value in little-endian order.
+ *
+ * Casting to uint32_t preserves the two's-complement bit pattern.
  */
 static void uart_write_int32_le(int32_t value)
 {
-    uint32_t u;
-
-    u = (uint32_t)value;
-
-    uart_write_byte((uint8_t)(u & 0xFFU));
-    uart_write_byte((uint8_t)((u >> 8) & 0xFFU));
-    uart_write_byte((uint8_t)((u >> 16) & 0xFFU));
-    uart_write_byte((uint8_t)((u >> 24) & 0xFFU));
+    uart_write_uint32_le((uint32_t)value);
 }
 
-/*
- * Sign-extend a 24-bit two's-complement value to 32 bits.
- */
-static int32_t sign_extend_24(uint32_t value)
-{
-    value &= 0x00FFFFFFU;
-
-    if ((value & 0x00800000U) != 0U) {
-        value |= 0xFF000000U;
-    }
-
-    return (int32_t)value;
-}
 
 static void uart_write_frame_marker(void)
 {
     uart_write_string("NEXT_FRAME\n");
 }
 
+
 int main(void)
 {
-    int i;
-
-    uint32_t raw_real;
-    uint32_t raw_imag;
-
-    int32_t out_real_24;
-    int32_t out_imag_24;
+    uint32_t range;
+    int32_t alpha;
+    int32_t beta;
 
     /*
      * UART changes to 921600 before waiting for the start byte.
-     * The laptop must therefore open the serial port at 921600.
+     * The laptop must therefore open the serial port at 921600 baud.
      */
     if (uart_init() != XST_SUCCESS) {
         while (1) {
@@ -163,8 +173,7 @@ int main(void)
 
     while (1) {
         /*
-         * Wait for the FPGA to finish processing a frame and make
-         * its FFT output available.
+         * Wait until a complete range/phase result is available.
          */
         while (
             (Xil_In32(BUF_BASE + REG_STATUS) &
@@ -173,45 +182,55 @@ int main(void)
         }
 
         /*
-         * Send all 64 FFT bins.
+         * Read all three values belonging to the result.
          *
-         * Each bin contains:
-         *     4 bytes real
-         *     4 bytes imaginary
+         * REG_ELEVATION_PHASE must be read last because reading
+         * address 0x10 acknowledges the result to top_io_buffer.
          *
-         * Each complete frame is therefore:
-         *     64 * 8 = 512 bytes
+         * The AXI slave already:
+         *   - zero-extends the unsigned 24-bit range to 32 bits
+         *   - sign-extends both signed 18-bit phases to 32 bits
          */
+        range = Xil_In32(
+            BUF_BASE + REG_RANGE
+        );
 
+        alpha = (int32_t)Xil_In32(
+            BUF_BASE + REG_ALPHA
+        );
+
+        beta = (int32_t)Xil_In32(
+            BUF_BASE + REG_BETA
+        );
+
+        /*
+         * Each result sent to Python is:
+         *
+         *     "NEXT_FRAME\n"
+         *     4 bytes unsigned range
+         *     4 bytes signed azimuth phase
+         *     4 bytes signed elevation phase
+         *
+         * All binary values are little-endian.
+         */
         uart_write_frame_marker();
-        for (i = 0; i < FFT_N; i++) {
-            /*
-             * The status check is retained for every bin in case
-             * the AXI peripheral deasserts valid between reads.
-             */
-            while (
-                (Xil_In32(BUF_BASE + REG_STATUS) &
-                 STATUS_OUT_VALID) == 0U
-            ) {
-            }
 
-            /*
-             * REG_OUT_REAL must be read second because reading it
-             * advances the FPGA output-buffer address.
-             */
-            raw_imag = Xil_In32(
-                BUF_BASE + REG_OUT_IMAG
-            );
+        uart_write_uint32_le(range);
+        uart_write_int32_le(alpha);
+        uart_write_int32_le(beta);
 
-            raw_real = Xil_In32(
-                BUF_BASE + REG_OUT_REAL
-            );
-
-            out_real_24 = sign_extend_24(raw_real);
-            out_imag_24 = sign_extend_24(raw_imag);
-
-            uart_write_int32_le(out_real_24);
-            uart_write_int32_le(out_imag_24);
+        /*
+         * Wait for the FPGA to process the acknowledgement and
+         * deassert valid before accepting another result.
+         *
+         * This prevents the same record from being transmitted twice
+         * if the PS checks the status register immediately after
+         * reading the elevation register.
+         */
+        while (
+            (Xil_In32(BUF_BASE + REG_STATUS) &
+             STATUS_OUT_VALID) != 0U
+        ) {
         }
     }
 

@@ -1,5 +1,5 @@
 input_filename = "registers.txt"
-output_filename = "bgt_rom.mem"
+output_filename = "close_conf.mem"
 
 word_count = 0
 

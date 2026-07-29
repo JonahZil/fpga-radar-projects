@@ -1,7 +1,8 @@
 module bgt_master #(
     parameter CONFIGURE_LENGTH = 32,
     parameter CHIRP_SIZE = 64,
-    parameter FRAME_DELAY = 125000000
+    parameter RX_CNT = 3,
+    parameter FRAME_DELAY = 2500000
 ) (
     
     input clk,
@@ -12,17 +13,21 @@ module bgt_master #(
     input IRQ,
     
     output reg fft_rst,
-    (* mark_debug = "true" *) input buffer_ready,
+    input buffer_ready,
     
-    (* mark_debug = "true" *) output wire SCLK,
-    (* mark_debug = "true" *) output wire MOSI,
-    (* mark_debug = "true" *) output reg SRST,
-    (* mark_debug = "true" *) output wire CS_N,
+    output wire SCLK,
+    output wire MOSI,
+    output reg SRST,
+    output wire CS_N,
     
     (* mark_debug = "true" *) output reg signed [47:0] adc_output,
     (* mark_debug = "true" *) output reg out_valid
 );
-
+    
+    
+    localparam RECEIVER_SIZE = CHIRP_SIZE / RX_CNT;
+    localparam ADDR_WIDTH = $clog2(RECEIVER_SIZE);
+    
     reg [6:0] clk_counter;
     reg [31:0] delay_counter;
     
@@ -75,12 +80,12 @@ module bgt_master #(
     localparam CONFIG_IDLE_STATE = 2'd0;
     localparam CONFIG_ACTIVE_STATE = 2'd1;
     localparam CONFIG_OUTPUT_STATE = 2'd2;
-    (* mark_debug = "true" *) reg [1:0] configure_state;
+    reg [1:0] configure_state;
     
-    (* mark_debug = "true" *) reg [5:0] configure_address;
-    (* mark_debug = "true" *) wire [31:0] configure_rom_word;
+    reg [5:0] configure_address;
+    wire [31:0] configure_rom_word;
     config_rom #(
-        .FILE("register_configuration.mem"),
+        .FILE("three_receiver_conf.mem"),
         .LENGTH(CONFIGURE_LENGTH)
     ) config_rom (
         .clk(clk),
@@ -97,14 +102,13 @@ module bgt_master #(
     assign CS_N = (state == FIFO_READ_STATE) ? CS_N_B : CS_N_M;
     
     reg start_burst_read;
-    (* mark_debug = "true" *) wire [11:0] raw_sample;
-    (* mark_debug = "true" *) wire sample_valid;
+    wire [11:0] raw_sample;
+    wire sample_valid;
+    
     wire burst_read_ready;
     
-    wire signed [11:0] centered_sample;
-    assign centered_sample = raw_sample - 12'd2048;
-    
-    (* mark_debug = "true" *) reg [15:0] frame_counter;
+    reg signed [11:0] centered_sample;
+    reg signed [24:0] window_product;
     
     burst_spi_master #(
         .CHIRP_SIZE(CHIRP_SIZE)
@@ -123,6 +127,26 @@ module bgt_master #(
         .in_ready(burst_read_ready)
     );
     
+    reg [ADDR_WIDTH - 1:0] hann_address;
+    wire [11:0] hann_coeff;
+    
+    hann_rom #(
+        .FILE("hann.mem"),
+        .LENGTH(RECEIVER_SIZE)
+    ) hann_rom_inst (
+        .clk(clk),
+        
+        .address(hann_address),
+        .rom_out(hann_coeff)
+    );
+    
+    reg [1:0] fifo_state;
+    localparam SAVE_STATE = 2'd0;
+    localparam MULT_STATE = 2'd1;
+    localparam OUT_STATE = 2'd2;
+    
+    reg [1:0] sample_count;
+    
     always @(posedge clk) begin
         
         if(rst) begin
@@ -140,7 +164,10 @@ module bgt_master #(
             start_burst_read <= 1'b0;
             fft_rst <= 1'b0;
             delay_counter <= 32'd0;
-            frame_counter <= 16'd0;
+            hann_address <= 0;
+            fifo_state <= SAVE_STATE;
+            sample_count <= 2'd0;
+            window_product <= 25'd0;
         end else begin
             
             MISO_r <= MISO;
@@ -224,21 +251,46 @@ module bgt_master #(
                     
                     if(master_valid) begin
                         state <= FIFO_READ_STATE;
-                        frame_counter <= frame_counter + 1;
                     end
                 end
                 
                 FIFO_READ_STATE: begin
-                    out_valid <= sample_valid;
-                    valid_word <= 1'b0;
-                    start_burst_read <= 1'b0;
-                    if(burst_read_ready) begin
-                        state <= UART_DELAY_STATE;
-                    end else begin
-                        if(sample_valid) begin
-                            adc_output <= {{8{centered_sample[11]}}, centered_sample, 4'b0, 24'b0};
+                    case(fifo_state)
+                    
+                        SAVE_STATE: begin
+                            valid_word <= 1'b0;
+                            out_valid <= 1'b0;
+                            start_burst_read <= 1'b0;
+                            if(burst_read_ready) begin
+                                state <= UART_DELAY_STATE;
+                                sample_count <= 2'd0;
+                                hann_address <= 0;
+                            end else begin
+                                if(sample_valid) begin
+                                    fifo_state <= MULT_STATE;
+                                    centered_sample <= raw_sample - 12'd2048;
+                                    //adc_output <= {{8{centered_sample[11]}}, centered_sample, 4'b0, 24'b0};
+                                end
+                            end
                         end
-                    end
+                        
+                        MULT_STATE: begin
+                            window_product <= centered_sample * $signed({1'b0, hann_coeff});
+                            fifo_state <= OUT_STATE;
+                        end
+                        
+                        OUT_STATE: begin
+                            adc_output <= {window_product >>> 8, 24'd0};
+                            out_valid <= 1'b1;
+                            if(sample_count == 2'd2) begin
+                                hann_address <= hann_address + 1;
+                                sample_count <= 2'd0;
+                            end else begin
+                                sample_count <= sample_count + 1;
+                            end
+                            fifo_state <= SAVE_STATE;
+                        end
+                    endcase;
                 end
                 
                 UART_DELAY_STATE: begin
