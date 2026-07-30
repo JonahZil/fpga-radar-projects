@@ -1,6 +1,6 @@
 module top_io_buffer # (
     parameter N = 256,
-    parameter RANGE_PARAMETER = 16'd37500,
+    parameter RANGE_PARAMETER = 16'd37500, //Bin spacing
     parameter FIRST_BIN = 3,
     parameter LAST_BIN = (N / 2) - 1,
     parameter FRAME_DELAY = 12500000
@@ -20,15 +20,15 @@ module top_io_buffer # (
 
     input out_ready,
    
-    (* mark_debug = "true" *) output reg signed [17:0] alpha,
-    (* mark_debug = "true" *) output reg signed [17:0] beta,
-    (* mark_debug = "true" *) output reg [23:0] range_calc,
-    (* mark_debug = "true" *) output reg out_valid
+    output reg signed [17:0] alpha,
+    output reg signed [17:0] beta,
+    output reg [23:0] range_calc,
+    output reg out_valid
 );
     
     localparam ADDR_WIDTH = $clog2(N);
     
-    wire signed [47:0] driver_output;
+    wire signed [47:0] driver_output; //Windowed sample
     wire driver_valid;
     
     wire fft_rst;
@@ -39,7 +39,7 @@ module top_io_buffer # (
     
     assign buffer_ready = (state == STATE_LOAD) && (load_counter == 0);
     
-    reg [1:0] bram_selector;
+    reg [1:0] bram_selector; 
     
     bgt_master #(
         .CONFIGURE_LENGTH(39),
@@ -79,6 +79,7 @@ module top_io_buffer # (
     reg [ADDR_WIDTH - 1:0] read_address;
     reg [ADDR_WIDTH - 1:0] write_address;
     
+    //Bit reverse the index of the FFT bin
     function automatic [ADDR_WIDTH-1:0] bit_reverse;
         input [ADDR_WIDTH-1:0] value;
         integer i;
@@ -143,7 +144,6 @@ module top_io_buffer # (
     wire signed [23:0] fft_out_real;
     wire signed [23:0] fft_out_imag;
     
-    //Instantiation of FFT module
     sdf_fft_256 fft (
         .clk(clk),
         .rst(rst || fft_rst || fft_rst_internal),
@@ -181,39 +181,41 @@ module top_io_buffer # (
     reg bram_valid_d;
     
     reg [1:0] max_state;
-    localparam STATE_WAIT = 2'd0;
+    localparam STATE_WAIT = 2'd0; 
     localparam STATE_MULT = 2'd1;
     localparam STATE_ADD = 2'd2;
     localparam STATE_FILT = 2'd3;
     
-    (* mark_debug = "true" *) reg signed [23:0] rx0_real, rx0_imag, 
+    reg signed [23:0] rx0_real, rx0_imag, 
         rx1_real, rx1_imag, rx2_real, rx2_imag;
     reg [47:0] rx0_real_s, rx0_imag_s,
         rx1_real_s, rx1_imag_s, rx2_real_s, rx2_imag_s;
     
-    reg [49:0] bin_vector_comp;
-    reg [49:0] bin_vector;
+    reg [49:0] bin_vector_comp; //Current vector
+    reg [49:0] bin_vector; //Max bin vector
     reg [ADDR_WIDTH - 1:0] bin_index;
     
     reg signed [23:0] r1_real, r1_imag, r2_real, r2_imag;
     wire signed [47:0] ac, ad, bc, bd;
     reg signed [47:0] ac_r, ad_r, bc_r, bd_r;
     
+    //Complex multiply
     assign ac = r1_real * r2_real;
     assign ad = r1_real * r2_imag;
     assign bc = r1_imag * r2_real;
     assign bd = r1_imag * r2_imag;
     
-    (* mark_debug = "true" *) reg signed [48:0] cordic_x, cordic_y;
-    (* mark_debug = "true" *) reg cordic_in_valid;
+    reg signed [48:0] cordic_x, cordic_y;
+    reg cordic_in_valid;
     
-    (* mark_debug = "true" *) wire signed [17:0] phase;
+    wire signed [17:0] phase;
     
-    (* mark_debug = "true" *) reg signed [17:0] azimuth_phase;
-    (* mark_debug = "true" *) reg signed [17:0] elevation_phase;
+    reg signed [17:0] azimuth_phase;
+    reg signed [17:0] elevation_phase;
     
-    (* mark_debug = "true" *) wire cordic_out_valid;
+    wire cordic_out_valid;
     
+    //atan2 module for phase calculation
     atan2_cordic # (
         .ITERATIONS(16)
     ) atan2 (
@@ -237,8 +239,10 @@ module top_io_buffer # (
     localparam STATE_EL_ADD = 3'd5;
     localparam STATE_EL_CALC = 3'd6;
     
-    localparam signed [17:0] AZIMUTH_OFFSET   = -18'sd846;
+    //Measured phase offsets
+    localparam signed [17:0] AZIMUTH_OFFSET   = -18'sd846; 
     localparam signed [17:0] ELEVATION_OFFSET =  18'sd44946;
+    
     localparam signed [18:0] PI = 19'sd102944;
     localparam signed [18:0] NEG_PI = -19'sd102944;
     localparam signed [18:0] TWO_PI = 19'sd205888;
@@ -371,7 +375,8 @@ module top_io_buffer # (
                             bin_vector_comp <= 50'd0;
                             bin_index <= FIRST_BIN;
                             write_address <= 0;
-                        end else begin
+                        //Reset the FFTs and switch to STATE_FFT_RST
+                        end else begin 
                             state <= STATE_FFT_RST;
                             fft_rst_internal <= 1;
                             write_address <= 0;
@@ -383,11 +388,13 @@ module top_io_buffer # (
                     end
                 end
                 
+                //In this state, the fft reset is given a one clock cycle buffer, then returns to STATE_FFT
                 STATE_FFT_RST: begin
                     fft_rst_internal <= 0;
                     state <= STATE_FFT;
                 end
                 
+                //In this state, the strongest peak is found by computing the size of the vector
                 STATE_MAX: begin
                     case(max_state)
                         
@@ -395,6 +402,7 @@ module top_io_buffer # (
                             max_state <= STATE_MULT;
                         end
                         
+                        //Square each real and imaginary part
                         STATE_MULT: begin
                             rx0_real_s <= $signed(bram_data0_o[47:24]) * $signed(bram_data0_o[47:24]);
                             rx0_imag_s <= $signed(bram_data0_o[23:0]) * $signed(bram_data0_o[23:0]);
@@ -405,6 +413,7 @@ module top_io_buffer # (
                             max_state <= STATE_ADD;
                         end
                         
+                        //Sum each squared part to form a vector
                         STATE_ADD: begin
                             bin_vector_comp <=
                                   {2'b0, rx0_real_s}
@@ -416,6 +425,8 @@ module top_io_buffer # (
                             max_state <= STATE_FILT;
                         end
                         
+                        //Go through each bin from FIRST_BIN to LAST_BIN
+                        //If the current vector is greater than the stored, it updated the stored vector to the current one
                         STATE_FILT: begin
                             if(bin_vector_comp > bin_vector) begin
                                 bin_vector <= bin_vector_comp;
@@ -448,11 +459,13 @@ module top_io_buffer # (
                     endcase
                 end
                 
+                //In this state, the range is calculated by multiplying the index by the bit-reversed bin spacing
                 STATE_RANGE: begin
                     range_calc <= bin_index * RANGE_PARAMETER;
                     state <= STATE_PHASE;
                 end
                 
+                //In this state, the phase difference for azimuth and elevation is computed                
                 STATE_PHASE: begin
                     case(phase_state)
                         
@@ -472,6 +485,7 @@ module top_io_buffer # (
                             phase_state <= STATE_AZ_ADD;
                         end
                         
+                        //Compute the angle with atan2
                         STATE_AZ_ADD: begin
                             cordic_x <=
                                 $signed({ac_r[47], ac_r})
@@ -528,10 +542,12 @@ module top_io_buffer # (
                     endcase
                     
                 end
-
+                
+                //In this state, the angle is computed based on the phase and the inverse sin
                 STATE_ANGLE: begin
                     case(angle_state)
                         
+                        //Account for the offset of the phases
                         STATE_CORRECT: begin
                             
                             az_corrected <= 
@@ -545,6 +561,7 @@ module top_io_buffer # (
                             angle_state <= STATE_ABS;
                         end
                         
+                        //Crimp the angle to fit within [-PI, PI)
                         STATE_ABS: begin
                             if(az_corrected >= PI) begin
                                 az_corrected <= az_corrected - TWO_PI;
@@ -561,7 +578,9 @@ module top_io_buffer # (
                             angle_state <= STATE_AZ_ADDRESS;
                         end
                         
+                        //Scale the phase so that it can index the asin lookup table
                         STATE_AZ_ADDRESS: begin
+                            //Store the sign
                             sign <= az_corrected[18];
                         
                             if (az_corrected[18])
@@ -576,6 +595,7 @@ module top_io_buffer # (
                             angle_state <= STATE_ALPHA_CALC;
                         end
                         
+                        //Readd the sign and store alpha
                         STATE_ALPHA_CALC: begin
                             if(sign) begin
                                 alpha <= -$signed(angle);
@@ -586,6 +606,7 @@ module top_io_buffer # (
                             angle_state <= STATE_EL_ADDRESS;
                         end
                         
+                        //Scale the phase so that it can index the asin lookup table
                         STATE_EL_ADDRESS: begin
                             sign <= el_corrected[18];
                         
@@ -601,6 +622,7 @@ module top_io_buffer # (
                             angle_state <= STATE_BETA_CALC;
                         end
                         
+                        //Readd the sign and store beta
                         STATE_BETA_CALC: begin
                             if(sign) begin
                                 beta <= -$signed(angle);
@@ -616,6 +638,7 @@ module top_io_buffer # (
                     endcase
                 end
                 
+                //In this state, the buffer waits until the PS is ready for input
                 STATE_OUTPUT: begin
                     if(out_ready) begin
                         state <= STATE_LOAD;

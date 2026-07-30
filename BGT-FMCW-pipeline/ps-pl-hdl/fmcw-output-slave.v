@@ -89,7 +89,7 @@
         .RANGE_PARAMETER(16'd37500),
         .FIRST_BIN(6),
         .LAST_BIN(52),
-        .FRAME_DELAY(3333333)
+        .FRAME_DELAY(1666667) //60 FPS
     ) buffer (
         .clk(s00_axi_aclk),
         .rst(~s00_axi_aresetn),

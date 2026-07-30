@@ -51,9 +51,7 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
     input  wire                          S_AXI_RREADY
 );
 
-    // ------------------------------------------------------------
-    // AXI4-Lite internal signals
-    // ------------------------------------------------------------
+    // AXI4LITE signals
     reg [C_S_AXI_ADDR_WIDTH-1:0] axi_awaddr;
     reg                          axi_awready;
     reg                          axi_wready;
@@ -74,16 +72,6 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
     assign S_AXI_RRESP   = axi_rresp;
     assign S_AXI_RVALID  = axi_rvalid;
 
-    // ------------------------------------------------------------
-    // Address decoding
-    //
-    // For a 32-bit AXI interface:
-    //   register 0 = 0x00
-    //   register 1 = 0x04
-    //   register 2 = 0x08
-    //   register 3 = 0x0C
-    //   register 4 = 0x10
-    // ------------------------------------------------------------
     localparam integer ADDR_LSB = (C_S_AXI_DATA_WIDTH / 32) + 1;
     localparam integer OPT_MEM_ADDR_BITS = 2;
 
@@ -106,9 +94,6 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
             ADDR_LSB + OPT_MEM_ADDR_BITS : ADDR_LSB
         ];
 
-    // ------------------------------------------------------------
-    // Five AXI registers
-    // ------------------------------------------------------------
     reg [C_S_AXI_DATA_WIDTH-1:0] slv_reg0; // 0x00: control
     reg [C_S_AXI_DATA_WIDTH-1:0] slv_reg1; // 0x04: status
     reg [C_S_AXI_DATA_WIDTH-1:0] slv_reg2; // 0x08: range
@@ -128,9 +113,7 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
         S_AXI_ARVALID &&
         axi_arready;
 
-    // ------------------------------------------------------------
-    // AXI write state machine
-    // ------------------------------------------------------------
+    // Write state machine
     reg [1:0] state_write;
 
     localparam Idle  = 2'b00;
@@ -210,9 +193,6 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
         end
     end
 
-    // ------------------------------------------------------------
-    // User registers and radar output capture
-    // ------------------------------------------------------------
     integer byte_index;
 
     always @(posedge S_AXI_ACLK)
@@ -229,19 +209,16 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
         end
         else
         begin
-            // Default state: no acknowledgement pulse
+            // Default state
             buf_out_ready <= 1'b0;
 
-            // Status register:
-            // bit 1 = output record available
+            // bit 1 = output available
             slv_reg1 <= {
                 {(C_S_AXI_DATA_WIDTH-2){1'b0}},
                 buf_out_valid,
                 1'b0
             };
 
-            // Latch all values belonging to the same completed frame.
-            // top_io_buffer holds these values stable while out_valid is high.
             if (buf_out_valid)
             begin
                 // 0x08: unsigned 24-bit range
@@ -263,7 +240,6 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
                 };
             end
 
-            // Only the control register is writable.
             if (slv_reg_wren)
             begin
                 case (write_reg_addr)
@@ -290,23 +266,15 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
 
                     default:
                     begin
-                        // All other registers are read-only.
                     end
 
                 endcase
             end
-
-            // Reading the final output register acknowledges the record.
-            //
-            // The PS should read:
-            //   0x08: range
-            //   0x0C: azimuth phase
-            //   0x10: elevation phase, read last
+            
+            //If the last register is read, the PS is ready
             if (slv_reg_rden)
             begin
                 case (read_reg_addr)
-
-                    // 0x10: elevation phase
                     3'h4:
                     begin
                         buf_out_ready <= buf_out_valid;
@@ -321,9 +289,7 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
         end
     end
 
-    // ------------------------------------------------------------
     // AXI read state machine
-    // ------------------------------------------------------------
     reg [1:0] state_read;
 
     localparam Raddr = 2'b10;
@@ -380,9 +346,6 @@ module fmcw_output_slave_slave_lite_v1_0_S00_AXI #
         end
     end
 
-    // ------------------------------------------------------------
-    // AXI read multiplexer
-    // ------------------------------------------------------------
     assign S_AXI_RDATA =
         (
             axi_araddr[

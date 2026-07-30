@@ -1,13 +1,13 @@
 module bgt_master #(
-    parameter CONFIGURE_LENGTH = 32,
+    parameter CONFIGURE_LENGTH = 32, //How many configurations need to be done
     parameter CHIRP_SIZE = 64,
     parameter RX_CNT = 3,
     parameter FRAME_DELAY = 2500000
 ) (
     
     input clk,
-    (* mark_debug = "true" *) input start,
-    (* mark_debug = "true" *) input rst,
+    input start,
+    input rst,
     
     input MISO,
     input IRQ,
@@ -20,15 +20,15 @@ module bgt_master #(
     output reg SRST,
     output wire CS_N,
     
-    (* mark_debug = "true" *) output reg signed [47:0] adc_output,
-    (* mark_debug = "true" *) output reg out_valid
+    output reg signed [47:0] adc_output,
+    output reg out_valid
 );
     
     
     localparam RECEIVER_SIZE = CHIRP_SIZE / RX_CNT;
     localparam ADDR_WIDTH = $clog2(RECEIVER_SIZE);
     
-    reg [6:0] clk_counter;
+    reg [6:0] clk_counter; 
     reg [31:0] delay_counter;
     
     localparam IDLE_STATE = 4'd0;
@@ -43,17 +43,14 @@ module bgt_master #(
     localparam SOFT_RESET_STATE = 4'd9;
     localparam PACR_WRITE_STATE = 4'd10;
     localparam FRAME_START_STATE = 4'd11;
-    (* mark_debug = "true" *) reg [3:0] state;
+    reg [3:0] state;
     
-    (* mark_debug = "true" *) reg valid_word;
-    (* mark_debug = "true" *) reg [31:0] master_word;
+    reg valid_word;
+    reg [31:0] master_word;
     
-    (* mark_debug = "true" *) wire [31:0] bgt_word;
+    wire [31:0] bgt_word; //The output of the BGT
     wire master_ready;
     wire master_valid;
-    
-    (* mark_debug = "true" *) reg MISO_r;
-    (* mark_debug = "true" *) reg IRQ_r;
     
     wire SCLK_M;
     wire CS_N_M;
@@ -159,8 +156,6 @@ module bgt_master #(
             configure_state <= 2'd0;
             adc_output <= 48'd0;
             out_valid <= 1'b0;
-            MISO_r <= 1'b0;
-            IRQ_r <= 1'b0;
             start_burst_read <= 1'b0;
             fft_rst <= 1'b0;
             delay_counter <= 32'd0;
@@ -170,11 +165,9 @@ module bgt_master #(
             window_product <= 25'd0;
         end else begin
             
-            MISO_r <= MISO;
-            IRQ_r <= IRQ;
-            
             case(state)
                 
+                //In this state, nothing gets sent over SPI until the physical start button is pressed
                 IDLE_STATE: begin
                     valid_word <= 1'b0;
                     master_word <= 32'd0;
@@ -183,6 +176,8 @@ module bgt_master #(
                     end
                 end
                 
+                //In this state, SRST goes high for 1000ns.
+                //The following states perform the hardware reset.
                 FIRST_DELAY_STATE: begin
                     SRST <= 1'b1;
                     clk_counter <= clk_counter + 1;
@@ -192,6 +187,7 @@ module bgt_master #(
                     end
                 end
                 
+                //SRST goes low for 1000ns
                 RESET_STATE: begin
                     SRST <= 1'b0;
                     clk_counter <= clk_counter + 1;
@@ -201,6 +197,7 @@ module bgt_master #(
                     end
                 end
                 
+                //SRST goes high for 1000ns
                 SECOND_DELAY_STATE: begin
                     SRST <= 1'b1;
                     clk_counter <= clk_counter + 1;
@@ -210,10 +207,12 @@ module bgt_master #(
                     end
                 end
                 
+                //In this state, each registered is configured according to their respective value in FILE
                 CONFIGURE_STATE: begin
                     
                     case(configure_state)
                         
+                        //Wait until the SPI master can send a new word
                         CONFIG_IDLE_STATE: begin
                             if(master_ready) begin
                                 master_word <= configure_rom_word;
@@ -223,6 +222,7 @@ module bgt_master #(
                             end
                         end
                         
+                        //Wait until the SPI master has a valid word
                         CONFIG_ACTIVE_STATE: begin
                             valid_word <= 1'b0;
                             if(master_valid) begin
@@ -230,6 +230,8 @@ module bgt_master #(
                             end
                         end
                         
+                        //If the last configuration is sent, switch to CHIRP_DELAY_STATE
+                        //Else, wait for next configuration
                         CONFIG_OUTPUT_STATE: begin
                             if(configure_address == CONFIGURE_LENGTH) begin
                                 state <= CHIRP_DELAY_STATE;
@@ -242,6 +244,7 @@ module bgt_master #(
                     
                 end
                 
+                //In this state, the code waits until IRQ goes high (meaning the FIFO has reached its threshold)
                 CHIRP_DELAY_STATE: begin
                     if(IRQ) begin
                         master_word <= 32'hFFC00000;
@@ -254,34 +257,39 @@ module bgt_master #(
                     end
                 end
                 
+                //In this state, the FIFO data, which is sent over burst mode, is read and output to the io buffer
                 FIFO_READ_STATE: begin
                     case(fifo_state)
-                    
+                        
                         SAVE_STATE: begin
                             valid_word <= 1'b0;
                             out_valid <= 1'b0;
                             start_burst_read <= 1'b0;
+                            //If the burst reader is done, switch to UART_DELAY_STATE
                             if(burst_read_ready) begin
                                 state <= UART_DELAY_STATE;
                                 sample_count <= 2'd0;
                                 hann_address <= 0;
                             end else begin
+                                //If the burst reader has a valid sample, remove the DC offset and store it
                                 if(sample_valid) begin
                                     fifo_state <= MULT_STATE;
                                     centered_sample <= raw_sample - 12'd2048;
-                                    //adc_output <= {{8{centered_sample[11]}}, centered_sample, 4'b0, 24'b0};
                                 end
                             end
                         end
                         
+                        //Apply the hann-window coefficient to the sample
                         MULT_STATE: begin
                             window_product <= centered_sample * $signed({1'b0, hann_coeff});
                             fifo_state <= OUT_STATE;
                         end
                         
+                        //Scale the windowed sample and output
                         OUT_STATE: begin
                             adc_output <= {window_product >>> 8, 24'd0};
                             out_valid <= 1'b1;
+                            //If the second buffer has been written to, increment the hann coefficient
                             if(sample_count == 2'd2) begin
                                 hann_address <= hann_address + 1;
                                 sample_count <= 2'd0;
@@ -293,6 +301,8 @@ module bgt_master #(
                     endcase;
                 end
                 
+                //In this state, the BGT master is reset while the top io buffer computes and while data is sent over UART.
+                //The delay is set by FRAME_DELAY
                 UART_DELAY_STATE: begin
                     out_valid <= 1'b0;
                     adc_output <= 48'd0;
@@ -304,11 +314,13 @@ module bgt_master #(
                     end
                 end
                 
+                //In this state, the FFT in the top io buffer is reset for the next frame
                 FPGA_RESET_STATE: begin
                     fft_rst <= 1'b1;
                     state <= SOFT_RESET_STATE;
                 end
                 
+                //In this state, the BGT resets the FIFO and FSM
                 SOFT_RESET_STATE: begin
                     fft_rst <= 1'b0;
                     
@@ -324,6 +336,7 @@ module bgt_master #(
                     end
                 end
                 
+                //In this state, PACR1 is written to as needed after FSM reset
                 PACR_WRITE_STATE: begin
                     if(master_ready) begin
                         master_word <= 32'h09E967FD;
@@ -337,6 +350,7 @@ module bgt_master #(
                     end
                 end
                 
+                //In this state, FRAME_START is asserted in the BGT and the FSM resets to CHIRP_DELAY_STATE
                 FRAME_START_STATE: begin
                     if(master_ready) begin
                         master_word <= 32'h011E8271;

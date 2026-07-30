@@ -5,22 +5,23 @@ module atan2_cordic # (
     input clk,
     input rst,
 
-    (* mark_debug = "true" *) input signed [48:0] x,
-    (* mark_debug = "true" *) input signed [48:0] y,
-    (* mark_debug = "true" *) input in_valid,
+    input signed [48:0] x,
+    input signed [48:0] y,
+    input in_valid,
     
-    (* mark_debug = "true" *) output reg signed [17:0] z_reg,
-    (* mark_debug = "true" *) output reg out_valid
+    output reg signed [17:0] z_reg,
+    output reg out_valid
 );
     
     localparam signed [17:0] PI = 18'sd102944;
     localparam signed [17:0] NEG_PI = -18'sd102944;
     
-    (* mark_debug = "true" *) reg signed [50:0] x_reg, y_reg;
+    reg signed [50:0] x_reg, y_reg;
     
-    (* mark_debug = "true" *) reg [ADDR_WIDTH:0] iteration;
+    reg [ADDR_WIDTH:0] iteration;
     wire signed [17:0] iteration_angle;
     
+    //Store the angles in the CORDIC algorithm
     cordic_angle_rom # (
         .FILE("cordic_angles.mem"),
         .ITERATIONS(ITERATIONS)
@@ -47,6 +48,7 @@ module atan2_cordic # (
             
             case(state)
                 
+                //Fit the x and y coordinates into a specific quadrant
                 IDLE_STATE: begin
                     if(in_valid) begin
                         if(x < 0) begin
@@ -64,6 +66,7 @@ module atan2_cordic # (
                             z_reg <= 18'sd0;
                         end
                         
+                        //Skip calculations if invalid input
                         if ((x == 0) && (y == 0)) begin
                             out_valid <= 1'b1;
                             z_reg <= 18'sd0;
@@ -74,6 +77,7 @@ module atan2_cordic # (
                     end
                 end
                 
+                //Iterate the CORDIC algorithm (adding and shifting)
                 ITERATE_STATE: begin
                     if(iteration == ITERATIONS) begin
                         out_valid <= 1'b1;
