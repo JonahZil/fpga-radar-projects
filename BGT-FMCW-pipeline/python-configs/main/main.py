@@ -10,29 +10,14 @@ PORT = "COM3"
 BAUD = 921600
 
 FRAME_MARKER = b"NEXT_FRAME\n"
-PACKET_SIZE = 12
 
-# FPGA range output is in micrometres.
-RANGE_UNITS_PER_METER = 1_000_000.0
-
-# FPGA alpha and beta outputs are Q15 radians.
 ANGLE_SCALE = float(1 << 15)
-
-# After rotating the radar 90 degrees around its viewing axis,
-# beta represents physical left/right motion.
-#
-# Change this to -1.0 if left and right appear reversed.
-HORIZONTAL_SIGN = 1.0
 
 MIN_RANGE_M = 0.0
 MAX_RANGE_M = 3.0
 
-IGNORED_RANGES_RAW = {
-    225_000,    # Bin 6 / lower search boundary
-    1_650_000, 
-    1_688_000 # Ignore 1.65 m detection
-}
-
+# If bin 6 is the strongest peak, ignore the frame.
+IGNORED_RANGE = 225000
 
 def read_until_line(ser, target):
     while True:
@@ -41,29 +26,22 @@ def read_until_line(ser, target):
         if line == target:
             return
 
-
+# Read nbytes from the serial terminal
 def read_exact(ser, nbytes):
     data = bytearray()
 
     while len(data) < nbytes:
         chunk = ser.read(nbytes - len(data))
-
-        if not chunk:
-            raise ConnectionError("Serial connection closed")
-
         data.extend(chunk)
 
     return bytes(data)
 
-
+# Wait until marker is sent over UART
 def wait_for_marker(ser, marker):
     matched = 0
 
     while matched < len(marker):
         byte = ser.read(1)
-
-        if not byte:
-            raise ConnectionError("Serial connection closed")
 
         if byte == marker[matched:matched + 1]:
             matched += 1
@@ -72,63 +50,101 @@ def wait_for_marker(ser, marker):
         else:
             matched = 0
 
+# Output the direction of the angle
+def direction_text(angle_deg, positive_direction, negative_direction):
+    if angle_deg > 0.0:
+        return positive_direction
+
+    if angle_deg < 0.0:
+        return negative_direction
+
+    return "center"
+
 
 def main():
     plt.ion()
 
     figure = plt.figure(
-        figsize=(8, 8),
+        figsize=(10, 9),
         constrained_layout=True,
     )
 
     axis = figure.add_subplot(
         111,
-        projection="polar",
+        projection="3d",
     )
 
-    # Zero degrees points directly away from the radar.
-    axis.set_theta_zero_location("N")
+    axis.set_xlabel("Left / right (m)")
+    axis.set_ylabel("Forward distance (m)")
+    axis.set_zlabel("Up / down (m)")
 
-    # Positive angles are displayed to the right.
-    axis.set_theta_direction(-1)
-
+    axis.set_xlim(-MAX_RANGE_M, MAX_RANGE_M)
     axis.set_ylim(MIN_RANGE_M, MAX_RANGE_M)
+    axis.set_zlim(-MAX_RANGE_M, MAX_RANGE_M)
 
-    axis.set_rticks([
-        0.5,
-        1.0,
-        1.5,
-        2.0,
-        2.5,
-        3.0,
-    ])
+    # Preserve the physical scaling
+    axis.set_box_aspect((2.0, 1.0, 2.0))
 
-    axis.set_rlabel_position(135)
-
-    # Only show the forward-facing half-plane.
-    axis.set_thetamin(-90)
-    axis.set_thetamax(90)
+    # Initial camera position
+    axis.view_init(
+        elev=22,
+        azim=-55,
+    )
 
     axis.set_title(
-        "FMCW radar range and left/right angle"
+        "FMCW radar 3D target position"
+    )
+
+    # Display the radar at the origin
+    radar_point, = axis.plot(
+        [0.0],
+        [0.0],
+        [0.0],
+        marker="s",
+        markersize=8,
+        linestyle="None",
+        label="Radar",
     )
 
     target_ray, = axis.plot(
         [0.0, 0.0],
         [0.0, 0.0],
+        [0.0, 0.0],
         linewidth=2,
     )
 
+    # Display strongest target
     target_point, = axis.plot(
+        [0.0],
         [0.0],
         [0.0],
         marker="o",
         markersize=10,
         linestyle="None",
+        label="Target",
     )
 
+    # Forward center line
+    axis.plot(
+        [0.0, 0.0],
+        [MIN_RANGE_M, MAX_RANGE_M],
+        [0.0, 0.0],
+        linestyle="--",
+        linewidth=1,
+    )
+    # Sideways center line
+    axis.plot(
+        [-MAX_RANGE_M, MAX_RANGE_M],
+        [0.0, 0.0],
+        [0.0, 0.0],
+        linestyle="--",
+        linewidth=1,
+    )
+
+    axis.legend()
+
     figure.suptitle(
-        "Range: -- m | Left/right angle: --°"
+        "Range: -- m | Left/right: --° | Up/down: --°"
     )
 
     plt.show(block=False)
@@ -145,70 +161,63 @@ def main():
         read_until_line(ser, "READY")
 
         while plt.fignum_exists(figure.number):
+            # Prevents overflow due to graphing overhead
             ser.reset_input_buffer()
+
             wait_for_marker(ser, FRAME_MARKER)
 
-            packet = read_exact(ser, PACKET_SIZE)
+            packet = read_exact(ser, 12)
 
-            # Packet format:
-            #   range: unsigned 32-bit integer
-            #   alpha: signed 32-bit Q15 radians
-            #   beta:  signed 32-bit Q15 radians
             range_raw, alpha_raw, beta_raw = struct.unpack(
                 "<Iii",
                 packet,
             )
 
-            if range_raw in IGNORED_RANGES_RAW:
+            if range_raw == IGNORED_RANGE:
                 continue
 
-            distance_m = (
-                range_raw
-                / RANGE_UNITS_PER_METER
+            # Convert to meters
+            distance_m = range_raw / 1000000
+
+            # Convert to decimal
+            horizontal_angle_rad = (beta_raw / ANGLE_SCALE)
+            vertical_angle_rad = (alpha_raw / ANGLE_SCALE)
+
+            horizontal_angle_deg = math.degrees(horizontal_angle_rad)
+            vertical_angle_deg = math.degrees(vertical_angle_rad)
+
+            horizontal_distance_m = (distance_m * math.cos(vertical_angle_rad))
+
+            # Cartesian coordinates for graph
+            x_m = (horizontal_distance_m * math.sin(horizontal_angle_rad))
+            y_m = (horizontal_distance_m * math.cos(horizontal_angle_rad))
+            z_m = (distance_m * math.sin(vertical_angle_rad))
+
+            target_ray.set_data_3d(
+                [0.0, x_m],
+                [0.0, y_m],
+                [0.0, z_m],
             )
 
-            if not math.isfinite(distance_m):
-                continue
-
-            if not MIN_RANGE_M <= distance_m <= MAX_RANGE_M:
-                continue
-
-            # Because the radar has been rotated 90 degrees,
-            # use beta for physical left/right position.
-            horizontal_angle_rad = (
-                HORIZONTAL_SIGN
-                * beta_raw
-                / ANGLE_SCALE
+            target_point.set_data_3d(
+                [x_m],
+                [y_m],
+                [z_m],
             )
 
-            if not math.isfinite(horizontal_angle_rad):
-                continue
-
-            horizontal_angle_deg = math.degrees(
-                horizontal_angle_rad
-            )
-
-            target_ray.set_data(
-                [0.0, horizontal_angle_rad],
-                [0.0, distance_m],
-            )
-
-            target_point.set_data(
-                [horizontal_angle_rad],
-                [distance_m],
-            )
-
-            if horizontal_angle_deg > 0.0:
-                direction = "right"
-            elif horizontal_angle_deg < 0.0:
-                direction = "left"
-            else:
-                direction = "center"
+            horizontal_direction = direction_text(horizontal_angle_deg, "right", "left")
+            vertical_direction = direction_text(vertical_angle_deg, "up", "down")
 
             figure.suptitle(
                 f"Range: {distance_m:.3f} m | "
-                f"Angle: {abs(horizontal_angle_deg):.1f}° "
-                f"{direction}"
+                f"Left/right: {abs(horizontal_angle_deg):.1f}° "
+                f"{horizontal_direction} | "
+                f"Up/down: {abs(vertical_angle_deg):.1f}° "
+                f"{vertical_direction}\n"
+                f"Position: "
+                f"x={x_m:+.3f} m, "
+                f"y={y_m:.3f} m, "
+                f"z={z_m:+.3f} m"
             )
 
             figure.canvas.draw_idle()
