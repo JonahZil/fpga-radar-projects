@@ -27,13 +27,15 @@ Nearly all radar processing is performed in programmable logic. The processing s
 
 The system consists of:
 
-* Infineon BGT60TR13C 60 GHz FMCW radar
+* Infineon BGT60TR13C 60 GHz FMCW radar shield
 * Zybo Z7 with a Xilinx Zynq-7000 SoC
 * Custom radar-to-PMOD adapter PCB
 * Three radar receiver channels and one transmitter
-* USB UART connection to the host computer
+* USB UART connection to the computer
 
-The radar operates with 1.8 V logic, while the Zybo PMOD uses 3.3 V logic. The custom PCB uses two SN74AVC4T245 level translators and an AP2112K 1.8 V regulator to safely connect the boards.
+The radar operates with 1.8 V logic, while the Zybo PMOD uses 3.3 V logic. The custom PCB uses two SN74AVC4T245 level translators and an AP2112K 1.8 V regulator to safely connect the boards. The adapter PCB is shown below:
+
+![BGT60TR13C shield - FPGA header adapter board](attachments/adapter_board.jpg)
 
 ## Radar Configuration
 
