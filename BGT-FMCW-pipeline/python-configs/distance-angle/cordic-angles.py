@@ -1,3 +1,6 @@
+# This file computes the cordic angles needed for the CORDIC algorithm which calculated the four quadrant inverse tangent, used in phase calculation.
+# All angles are in signed Q3.15 format.
+
 import numpy as np
 from pathlib import Path
 

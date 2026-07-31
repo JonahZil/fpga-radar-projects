@@ -1,3 +1,5 @@
+# This file generates the twiddle factors for a specific stage of the FFT.
+
 import math
 from pathlib import Path
 

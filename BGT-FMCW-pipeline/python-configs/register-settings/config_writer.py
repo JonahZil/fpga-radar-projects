@@ -1,3 +1,5 @@
+# This file converts the Infineon generated register configuration file into readable 8 digit hex for ROM initialization. 
+
 input_filename = "registers.txt"
 output_filename = "close_conf.mem"
 

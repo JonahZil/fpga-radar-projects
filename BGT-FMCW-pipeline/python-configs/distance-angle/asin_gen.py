@@ -1,3 +1,6 @@
+# This file computes the lookup table for inverse sin used for angle calculation in the RTL.
+# All angles are in signed Q3.15 format.
+
 import math
 from pathlib import Path
 

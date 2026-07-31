@@ -1,3 +1,5 @@
+# This file computes the hann window coefficients in unsigned q12 format.
+
 import numpy as np
 from pathlib import Path
 

@@ -1,3 +1,6 @@
+# This file handles the UART communication from the PS
+# It recreates the 3D cartesian coordinates based on the alpha, beta, and range received. 
+
 import math
 import serial
 import struct

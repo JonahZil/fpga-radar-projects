@@ -1,3 +1,5 @@
+# This file computes the bin spacing, in micrometers, of the FFT, used for range calculation.
+
 import numpy as np
 
 ADC_sampling_rate = 2e8
