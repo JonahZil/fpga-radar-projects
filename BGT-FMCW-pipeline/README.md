@@ -50,8 +50,8 @@ The current configuration uses:
 * FFT bins 6 through 127 for target detection
 * 37.5 mm of range per FFT bin
 * A 100 MHz FPGA clock
-* A frame period of approximately 20 ms
-* An update rate of approximately 50 FPS
+* A frame period of approximately 16.7 ms
+* An update rate of approximately 60 FPS
 
 ## Signal Processing
 
